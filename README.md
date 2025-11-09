@@ -53,7 +53,7 @@ Add `singularity_workflow` to your application's dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:singularity_workflow, "~> 0.1.0"}
+    {:singularity_workflow, "~> 0.1.5"}
   ]
 end
 ```
@@ -281,12 +281,12 @@ Create workflows at runtime:
 
 ```elixir
 # Create workflow
-{:ok, workflow_id} = Singularity.Workflow.FlowBuilder.create_flow("ai_generated_workflow", MyApp.Repo)
+{:ok, _} = Singularity.Workflow.FlowBuilder.create_flow("ai_generated_workflow", MyApp.Repo)
 
 # Add steps
-{:ok, _} = Singularity.Workflow.FlowBuilder.add_step(workflow_id, "analyze", [], MyApp.Repo)
-{:ok, _} = Singularity.Workflow.FlowBuilder.add_step(workflow_id, "generate", ["analyze"], MyApp.Repo)
-{:ok, _} = Singularity.Workflow.FlowBuilder.add_step(workflow_id, "validate", ["generate"], MyApp.Repo)
+{:ok, _} = Singularity.Workflow.FlowBuilder.add_step("ai_generated_workflow", "analyze", [], MyApp.Repo)
+{:ok, _} = Singularity.Workflow.FlowBuilder.add_step("ai_generated_workflow", "generate", ["analyze"], MyApp.Repo)
+{:ok, _} = Singularity.Workflow.FlowBuilder.add_step("ai_generated_workflow", "validate", ["generate"], MyApp.Repo)
 
 # Define step functions
 step_functions = %{
@@ -297,9 +297,9 @@ step_functions = %{
 
 # Execute
 {:ok, result} = Singularity.Workflow.Executor.execute_dynamic(
-  workflow_id, 
-  %{prompt: "Generate a report"}, 
-  step_functions, 
+  "ai_generated_workflow",
+  %{prompt: "Generate a report"},
+  step_functions,
   MyApp.Repo
 )
 ```
@@ -362,17 +362,16 @@ step_functions = %{
   &MyApp.GoalDecomposer.decompose/1,
   step_functions,
   MyApp.Repo,
-  optimization_level: :advanced,
-  monitoring: true
+  optimize: true,
+  monitor: true
 )
 ```
 
 ### Key Features
 
 - **Automatic Decomposition**: Convert goals to task graphs
-- **Optimization**: Learn from execution patterns to optimize future workflows
-- **Three Optimization Levels**: `:basic` (safe) → `:advanced` (smart) → `:aggressive` (ML-based)
-- **Real-time Monitoring**: Event-driven notifications during execution
+- **Optimization**: Learn from execution patterns to optimize future workflows (toggle with `optimize: true`)
+- **Real-time Monitoring**: Event-driven notifications during execution (toggle with `monitor: true`)
 - **Multi-Workflow Composition**: Execute multiple goals in parallel
 
 ### Components
@@ -435,20 +434,17 @@ For comprehensive Phoenix integration guide, see [API_REFERENCE.md](docs/API_REF
 Singularity.Workflow.Executor.execute(workflow_module, input, repo, opts \\ [])
 
 # Execute dynamic workflow
-Singularity.Workflow.Executor.execute_dynamic(workflow_id, input, step_functions, repo, opts \\ [])
+Singularity.Workflow.Executor.execute_dynamic(workflow_slug, input, step_functions, repo, opts \\ [])
 
 # Options
 opts = [
-  timeout: 30_000,           # Execution timeout (ms)
-  max_retries: 3,            # Retry failed tasks
-  parallel: true,            # Enable parallel execution
-  notify_events: true,       # Send NOTIFY events
-  execution: :local          # :local (this node) or :distributed (multi-node)
+  timeout: 600_000,          # Execution timeout in milliseconds (default: 5 minutes)
+  poll_interval: 100,        # Task polling interval in milliseconds (default: 100ms)
+  worker_id: "worker_1"      # Optional worker identifier for distributed execution
 ]
 
-# Execution strategies
-execution: :local        # Execute locally on this node (default)
-execution: :distributed  # Execute across multiple nodes via PostgreSQL + pgmq
+# Note: Parallel execution is automatic based on workflow dependencies
+# Independent branches run concurrently without additional configuration
 ```
 
 ### Workflow Lifecycle Management
@@ -478,19 +474,29 @@ execution: :distributed  # Execute across multiple nodes via PostgreSQL + pgmq
 
 ```elixir
 # Create workflow
-Singularity.Workflow.FlowBuilder.create_flow(name, repo)
+Singularity.Workflow.FlowBuilder.create_flow(workflow_slug, repo, opts)
 
-# Add step
-Singularity.Workflow.FlowBuilder.add_step(workflow_id, step_name, depends_on, repo)
+# Add single step
+Singularity.Workflow.FlowBuilder.add_step(workflow_slug, step_slug, depends_on, repo)
 
-# Add map step
-Singularity.Workflow.FlowBuilder.add_map_step(workflow_id, step_name, depends_on, initial_tasks, repo)
+# Add map step (parallel processing)
+Singularity.Workflow.FlowBuilder.add_step(
+  workflow_slug,
+  step_slug,
+  depends_on,
+  repo,
+  step_type: "map",
+  initial_tasks: 50
+)
 
 # Get workflow
-Singularity.Workflow.FlowBuilder.get_workflow(workflow_id, repo)
+Singularity.Workflow.FlowBuilder.get_flow(workflow_slug, repo)
 
 # List workflows
-Singularity.Workflow.FlowBuilder.list_workflows(repo)
+Singularity.Workflow.FlowBuilder.list_flows(repo)
+
+# Delete workflow
+Singularity.Workflow.FlowBuilder.delete_flow(workflow_slug, repo)
 ```
 
 ### Singularity.Workflow.Notifications
@@ -562,21 +568,16 @@ end
 
 ## 🚀 Examples
 
-### Complete Examples
+### Example Patterns
 
-Check the `examples/` directory for comprehensive examples:
+See the test suite (`test/singularity_workflow/`) for comprehensive examples:
 
-- **`simple_workflow.ex`** - Basic workflow execution
-- **`parallel_processing.ex`** - Map steps and parallel execution
-- **`dynamic_workflow.ex`** - Runtime workflow generation
-- **`notifications_demo.ex`** - Real-time notification handling
-- **`error_handling.ex`** - Retry logic and error recovery
-
-### Integration Examples
-
-- **`phoenix_integration.ex`** - Phoenix LiveView integration
-- **`ai_workflow_generation.ex`** - LLM-generated workflows
-- **`microservices_coordination.ex`** - Multi-service workflows
+- **Static Workflows** - Define workflows as Elixir modules
+- **Dynamic Workflows** - Generate workflows at runtime
+- **Parallel Processing** - Map steps for bulk operations
+- **Error Handling** - Retry logic and failure recovery
+- **Real-time Notifications** - PostgreSQL NOTIFY integration
+- **Phoenix Integration** - LiveView and Channel integration
 
 ## 📦 Deploying Applications That Use This Library
 
