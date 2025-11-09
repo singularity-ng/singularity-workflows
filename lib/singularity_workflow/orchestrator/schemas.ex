@@ -12,6 +12,16 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     use Ecto.Schema
     import Ecto.Changeset
 
+    @type t :: %__MODULE__{
+            id: binary(),
+            goal: String.t(),
+            tasks: map(),
+            metadata: map(),
+            status: String.t(),
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
+
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_task_graphs" do
       field(:goal, :string)
@@ -35,6 +45,15 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     use Ecto.Schema
     import Ecto.Changeset
 
+    @type t :: %__MODULE__{
+            id: binary(),
+            name: String.t(),
+            description: String.t() | nil,
+            config: map(),
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
+
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_workflows" do
       field(:name, :string)
@@ -56,6 +75,17 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     """
     use Ecto.Schema
     import Ecto.Changeset
+
+    @type t :: %__MODULE__{
+            id: binary(),
+            workflow_id: binary(),
+            status: String.t(),
+            result: map() | nil,
+            started_at: DateTime.t() | nil,
+            completed_at: DateTime.t() | nil,
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
 
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_executions" do
@@ -81,6 +111,16 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     use Ecto.Schema
     import Ecto.Changeset
 
+    @type t :: %__MODULE__{
+            id: binary(),
+            execution_id: binary(),
+            task_id: String.t(),
+            status: String.t(),
+            result: map() | nil,
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
+
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_task_executions" do
       field(:execution_id, :binary_id)
@@ -104,6 +144,14 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     use Ecto.Schema
     import Ecto.Changeset
 
+    @type t :: %__MODULE__{
+            id: binary(),
+            type: String.t(),
+            data: map() | nil,
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
+
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_events" do
       field(:type, :string)
@@ -124,6 +172,15 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     """
     use Ecto.Schema
     import Ecto.Changeset
+
+    @type t :: %__MODULE__{
+            id: binary(),
+            execution_id: binary(),
+            metric_name: String.t(),
+            value: float(),
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
 
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_performance_metrics" do
@@ -146,6 +203,15 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     """
     use Ecto.Schema
     import Ecto.Changeset
+
+    @type t :: %__MODULE__{
+            id: binary(),
+            pattern_type: String.t(),
+            pattern_data: map(),
+            confidence: float(),
+            inserted_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
 
     @primary_key {:id, :binary_id, autogenerate: true}
     schema "orchestrator_learning_patterns" do

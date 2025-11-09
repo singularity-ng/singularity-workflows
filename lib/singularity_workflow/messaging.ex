@@ -26,10 +26,17 @@ defmodule Singularity.Workflow.Messaging do
   end
 
   defp do_publish(repo, queue_name, payload, opts) do
-    case Notifications.send_with_notify(queue_name, payload, repo, opts) do
-      :ok -> {:ok, :sent}
-      {:ok, result} -> {:ok, result}
-      {:error, reason} -> {:error, reason}
+    result = Notifications.send_with_notify(queue_name, payload, repo, opts)
+
+    case result do
+      :ok ->
+        {:ok, :sent}
+
+      {:ok, data} ->
+        {:ok, data}
+
+      {:error, _} = error ->
+        error
     end
   end
 

@@ -570,8 +570,8 @@ defmodule Singularity.Workflow.Executor do
 
             # Execute workflow again with same input
             case execute(workflow_module, run.input, repo) do
-              {:ok, _result, new_run_id} ->
-                {:ok, new_run_id}
+              {:ok, _result} ->
+                {:ok, run_id}
 
               {:error, reason} ->
                 {:error, {:retry_failed, reason}}
@@ -757,17 +757,8 @@ defmodule Singularity.Workflow.Executor do
 
         # Cancel each job using Oban API
         Enum.each(job_ids, fn job_id ->
-          case Oban.cancel_job(job_id) do
-            :ok ->
-              Logger.debug("Cancelled Oban job", job_id: job_id, run_id: run_id)
-
-            {:error, reason} ->
-              Logger.warning("Failed to cancel Oban job",
-                job_id: job_id,
-                run_id: run_id,
-                reason: inspect(reason)
-              )
-          end
+          :ok = Oban.cancel_job(job_id)
+          Logger.debug("Cancelled Oban job", job_id: job_id, run_id: run_id)
         end)
       end
     rescue

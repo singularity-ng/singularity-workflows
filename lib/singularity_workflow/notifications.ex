@@ -327,47 +327,39 @@ defmodule Singularity.Workflow.Notifications do
       case ensure_queue(queue_name, repo) do
         :ok ->
           # Read messages from PGMQ
-          # PGMQ read_messages signature: read_messages(repo, queue_name, visibility_timeout, limit)
-          case Pgmq.read_messages(repo, queue_name, visibility_timeout, limit) do
-            {:ok, messages} when is_list(messages) ->
-              formatted_messages =
-                Enum.map(messages, fn %Pgmq.Message{id: msg_id, body: body} ->
-                  decoded_payload =
-                    case Jason.decode(body) do
-                      {:ok, decoded} -> decoded
-                      {:error, _} -> %{"raw" => body}
-                    end
+          # PGMQ read_messages returns a list directly or nil
+          messages = Pgmq.read_messages(repo, queue_name, visibility_timeout, limit)
 
-                  %{
-                    id: Ecto.UUID.generate(),
-                    workflow_id:
-                      Map.get(decoded_payload, "workflow_id") ||
-                        Map.get(decoded_payload, :workflow_id) ||
-                        Ecto.UUID.generate(),
-                    queue_name: queue_name,
-                    message_id: Integer.to_string(msg_id),
-                    payload: decoded_payload
-                  }
-                end)
+          if is_list(messages) and length(messages) > 0 do
+            formatted_messages =
+              Enum.map(messages, fn %Pgmq.Message{id: msg_id, body: body} ->
+                decoded_payload =
+                  case Jason.decode(body) do
+                    {:ok, decoded} -> decoded
+                    {:error, _} -> %{"raw" => body}
+                  end
 
-              Logger.debug("Received messages from queue",
-                queue: queue_name,
-                count: length(formatted_messages),
-                limit: limit
-              )
+                %{
+                  id: Ecto.UUID.generate(),
+                  workflow_id:
+                    Map.get(decoded_payload, "workflow_id") ||
+                      Map.get(decoded_payload, :workflow_id) ||
+                      Ecto.UUID.generate(),
+                  queue_name: queue_name,
+                  message_id: Integer.to_string(msg_id),
+                  payload: decoded_payload
+                }
+              end)
 
-              {:ok, formatted_messages}
+            Logger.debug("Received messages from queue",
+              queue: queue_name,
+              count: length(formatted_messages),
+              limit: limit
+            )
 
-            {:ok, nil} ->
-              {:ok, []}
-
-            {:error, reason} ->
-              Logger.error("Failed to receive messages from queue",
-                queue: queue_name,
-                error: inspect(reason)
-              )
-
-              {:error, reason}
+            {:ok, formatted_messages}
+          else
+            {:ok, []}
           end
 
         {:error, reason} ->
@@ -443,24 +435,14 @@ defmodule Singularity.Workflow.Notifications do
         end
 
       # Delete the message from PGMQ
-      case Pgmq.delete_messages(repo, queue_name, [msg_id_int]) do
-        :ok ->
-          Logger.debug("Message acknowledged",
-            queue: queue_name,
-            message_id: message_id
-          )
+      :ok = Pgmq.delete_messages(repo, queue_name, [msg_id_int])
 
-          :ok
+      Logger.debug("Message acknowledged",
+        queue: queue_name,
+        message_id: message_id
+      )
 
-        {:error, reason} ->
-          Logger.error("Failed to acknowledge message",
-            queue: queue_name,
-            message_id: message_id,
-            error: inspect(reason)
-          )
-
-          {:error, reason}
-      end
+      :ok
     rescue
       error ->
         Logger.error("Exception while acknowledging message",
@@ -486,7 +468,7 @@ defmodule Singularity.Workflow.Notifications do
   defp send_pgmq_message(queue_name, message, repo) when is_binary(queue_name) do
     with {:ok, json} <- encode_message(message),
          {:ok, message_id} <- do_send(queue_name, json, repo) do
-      {:ok, Integer.to_string(message_id)}
+      {:ok, to_string(message_id)}
     end
   end
 
@@ -696,9 +678,6 @@ defmodule Singularity.Workflow.Notifications do
         {:error, reason}
     end
   end
-
-  defp decode_message_payload(%{} = msg), do: {:ok, msg}
-  defp decode_message_payload(other), do: {:ok, other}
 
   defp cleanup_reply_queue(false, _queue, _repo), do: :ok
 

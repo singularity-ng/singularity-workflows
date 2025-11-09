@@ -155,24 +155,9 @@ defmodule Singularity.Workflow.Jobs.GpuStepJob do
                 device_id = System.get_env("CUDA_VISIBLE_DEVICES") |> parse_device_id()
                 {:ok, %{device_id: device_id || 0, backend: :cuda, memory_gb: 12}}
               else
-                # Try to check Nx backend if available
-                try do
-                  if Code.ensure_loaded(Nx) == {:module, Nx} and
-                       function_exported?(Nx, :default_backend, 0) do
-                    backend = Nx.default_backend()
-
-                    if backend == EXLA do
-                      {:ok, %{device_id: 0, backend: :cuda, memory_gb: 12}}
-                    else
-                      {:error, :gpu_backend_not_available}
-                    end
-                  else
-                    {:error, :gpu_backend_not_available}
-                  end
-                rescue
-                  _ ->
-                    {:error, :gpu_check_failed}
-                end
+                # Nx backend detection is not available
+                # Default to CPU if CUDA is not available
+                {:error, :gpu_backend_not_available}
               end
 
             _ ->
@@ -197,8 +182,6 @@ defmodule Singularity.Workflow.Jobs.GpuStepJob do
       :error -> nil
     end
   end
-
-  defp parse_device_id(_), do: nil
 
   # Execute function with GPU context (set environment variables, etc.).
   defp with_gpu_context(gpu_info, fun) do

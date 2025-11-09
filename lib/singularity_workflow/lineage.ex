@@ -1,8 +1,8 @@
 defmodule Singularity.Workflow.Lineage do
   @moduledoc """
-  DAG-based lineage tracking for evolutionary memory.
+  DAG-based lineage tracking for Genesis v2 (self-improving workflows).
 
-  Exposes workflow execution history for external learning systems.
+  Exposes workflow execution history for learning systems and optimization.
   Each workflow run encodes:
   - Goal/input that triggered execution
   - Generated task graph (genotype)
@@ -14,6 +14,7 @@ defmodule Singularity.Workflow.Lineage do
   - Generational learning
   - Pattern mining
   - Performance analysis
+  - Adaptive workflow optimization (via OrchestratorOptimizer)
   """
 
   import Ecto.Query

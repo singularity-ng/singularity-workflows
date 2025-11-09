@@ -1,11 +1,15 @@
 defmodule Singularity.Workflow do
   @moduledoc """
-  Singularity.Workflow - Complete workflow orchestration for Elixir.
+  Singularity.Workflow - Complete workflow orchestration with Genesis v2 (Self-Improving Workflows).
 
   A unified package providing complete workflow orchestration capabilities,
   combining PGMQ-based message queuing, HTDAG goal decomposition, workflow execution,
-  and real-time notifications. Converts high-level goals into executable task graphs
-  with automatic dependency resolution and parallel execution.
+  and real-time notifications. Includes **Genesis v2** - self-improving workflows that
+  learn and adapt from execution history via `Lineage` tracking and `OrchestratorOptimizer`.
+
+  Converts high-level goals into executable task graphs with automatic dependency
+  resolution and parallel execution. Workflows automatically improve over time
+  through adaptive learning and optimization.
 
   ## Dynamic vs Static Workflows
 
@@ -77,7 +81,7 @@ defmodule Singularity.Workflow do
 
   ## Architecture
 
-  singularity_workflow provides complete workflow orchestration capabilities:
+  singularity_workflow provides complete workflow orchestration with self-improving capabilities:
 
   - **pgmq Extension** - PostgreSQL Message Queue for task coordination
   - **Database-Driven** - Task state persisted in PostgreSQL tables
@@ -86,6 +90,7 @@ defmodule Singularity.Workflow do
   - **Map Steps** - Variable task counts (`initial_tasks: N`) for bulk processing
   - **Dependency Merging** - Steps receive outputs from all dependencies
   - **Multi-Instance** - Horizontal scaling via pgmq + PostgreSQL
+  - **Genesis v2 (Self-Improving)** - Lineage tracking + OrchestratorOptimizer for adaptive learning
 
   ## Quick Start
 
@@ -154,6 +159,34 @@ defmodule Singularity.Workflow do
           {:aggregate, &__MODULE__.aggregate/1, depends_on: [:process_user]}
         ]
       end
+
+  ## Genesis v2: Self-Improving Workflows
+
+  Singularity.Workflow includes **Genesis v2** for automatic workflow optimization:
+
+  **Lineage Tracking** (`Singularity.Workflow.Lineage`):
+  - Tracks complete execution history (genotype + phenotype + metrics)
+  - Enables deterministic replay for verification
+  - Provides pattern mining data for learning
+
+  **OrchestratorOptimizer** (`Singularity.Workflow.OrchestratorOptimizer`):
+  - Learns from execution patterns via lineage data
+  - Automatically optimizes timeouts, retries, parallelization
+  - Adapts resource allocation based on historical performance
+  - Three optimization levels: `:basic`, `:advanced`, `:aggressive`
+
+  **Example: Self-Improving Workflow**:
+  ```elixir
+  # Run workflow - will be tracked in lineage
+  {:ok, result} = Singularity.Workflow.Executor.execute(MyWorkflow, input, repo)
+
+  # On subsequent runs, OrchestratorOptimizer will automatically:
+  # - Learn from previous execution patterns
+  # - Adjust timeouts based on variance
+  # - Reorder tasks for better parallelization
+  # - Optimize resource allocation
+  # → Each run gets progressively faster!
+  ```
 
   ## Workflow Lifecycle Management
 

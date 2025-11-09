@@ -1,24 +1,28 @@
 defmodule Singularity.Workflow.OrchestratorOptimizer do
   @moduledoc """
-  Workflow optimization for HTDAG-generated workflows.
+  Genesis v2 Optimization Engine: Self-improving workflow learning and adaptation.
 
-  Analyzes workflow execution patterns and optimizes future workflows
-  based on historical performance data and learning algorithms.
+  Part of Genesis v2 (formerly called Evolution). Analyzes workflow execution patterns
+  and optimizes future workflows based on historical performance data and learning algorithms.
+  Works in tandem with `Singularity.Workflow.Lineage` to track execution history and enable
+  adaptive workflow optimization.
 
   ## Features
 
   - **Performance Analysis**: Analyze execution times and success rates
   - **Dependency Optimization**: Optimize task dependencies for better parallelization
   - **Resource Allocation**: Optimize resource usage and task distribution
-  - **Learning**: Learn from execution patterns to improve future workflows
-  - **Adaptive Strategies**: Adapt optimization strategies based on workload
+  - **Adaptive Learning**: Learn from execution patterns to improve future workflows
+  - **Self-Improving**: Workflows become faster and more efficient over time
+  - **Multiple Optimization Levels**: :basic, :advanced, :aggressive
 
   ## Usage
 
-      # Optimize a workflow based on historical data
+      # Optimize a workflow based on historical data (Genesis v2)
       {:ok, optimized_workflow} = Singularity.Workflow.OrchestratorOptimizer.optimize_workflow(
         workflow,
-        MyApp.Repo
+        MyApp.Repo,
+        optimization_level: :advanced
       )
 
       # Get optimization recommendations
@@ -30,14 +34,14 @@ defmodule Singularity.Workflow.OrchestratorOptimizer do
   ## AI Navigation Metadata
 
   ### Module Identity
-  - **Type**: Optimization Engine (enhancer)
-  - **Purpose**: Learn from execution patterns to optimize future workflows
-  - **Works with**: Singularity.Workflow.Orchestrator, Singularity.Workflow.OrchestratorNotifications
+  - **Type**: Genesis v2 Optimization Engine
+  - **Purpose**: Enable self-improving workflows through learning-based optimization
+  - **Works with**: Singularity.Workflow.Lineage, Singularity.Workflow.Orchestrator
 
   ### Call Graph
   - `optimize_workflow/3` → analyze metrics, apply optimizations, store patterns
   - `get_recommendations/3` → Repository queries, pattern matching
-  - **Integrates**: Repository, OrchestratorNotifications, Config
+  - **Integrates**: Repository, Lineage, OrchestratorNotifications
 
   ### Anti-Patterns
   - ❌ DO NOT optimize workflows without sufficient historical data
