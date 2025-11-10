@@ -1,11 +1,10 @@
 defmodule Singularity.Workflow.OrchestratorOptimizer do
   @moduledoc """
-  Genesis v2 Optimization Engine: Self-improving workflow learning and adaptation.
+  Workflow optimization for HTDAG-generated workflows.
 
-  Part of Genesis v2 (formerly called Evolution). Analyzes workflow execution patterns
-  and optimizes future workflows based on historical performance data and learning algorithms.
-  Works in tandem with `Singularity.Workflow.Lineage` to track execution history and enable
-  adaptive workflow optimization.
+  Analyzes workflow execution patterns and optimizes future workflows based on historical
+  performance data and learning algorithms. Works in tandem with `Singularity.Workflow.Lineage`
+  to track execution history and enable adaptive workflow optimization.
 
   ## Features
 
@@ -18,7 +17,7 @@ defmodule Singularity.Workflow.OrchestratorOptimizer do
 
   ## Usage
 
-      # Optimize a workflow based on historical data (Genesis v2)
+      # Optimize a workflow based on historical data
       {:ok, optimized_workflow} = Singularity.Workflow.OrchestratorOptimizer.optimize_workflow(
         workflow,
         MyApp.Repo,
@@ -34,8 +33,8 @@ defmodule Singularity.Workflow.OrchestratorOptimizer do
   ## AI Navigation Metadata
 
   ### Module Identity
-  - **Type**: Genesis v2 Optimization Engine
-  - **Purpose**: Enable self-improving workflows through learning-based optimization
+  - **Type**: Workflow Optimization Engine
+  - **Purpose**: Optimize workflows through learning-based analysis of execution patterns
   - **Works with**: Singularity.Workflow.Lineage, Singularity.Workflow.Orchestrator
 
   ### Call Graph

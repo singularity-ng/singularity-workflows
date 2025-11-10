@@ -36,28 +36,29 @@ defmodule Singularity.Workflow.MixProject do
   defp deps do
     [
       # JSON handling
-      {:jason, "~> 1.4"},
+      dep(:jason, "~> 1.4"),
 
       # Observability
-      {:telemetry, "~> 1.0"},
+      dep(:telemetry, "~> 1.0"),
 
       # Development and testing
-      {:mox, "~> 1.2", only: :test},
+      dep(:mox, "~> 1.2", only: :test),
 
       # pgmq client
-      {:pgmq, "~> 0.4"},
+      dep(:pgmq, "~> 0.4"),
 
       # Job queue for background processing
-      {:oban, "~> 2.17"},
+      dep(:oban, "~> 2.17"),
 
       # Code quality and security (dev only)
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.18", only: :test},
+      dep(:credo, "~> 1.7", only: [:dev, :test], runtime: false),
+      dep(:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false),
+      dep(:sobelow, "~> 0.13", only: [:dev, :test], runtime: false),
+      dep(:excoveralls, "~> 0.18", only: :test),
 
       # Documentation
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
+      # Disabled in CI due to proxy TLS issues fetching Hex packages
+      # {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 
@@ -111,5 +112,24 @@ defmodule Singularity.Workflow.MixProject do
       "test.watch": ["test --listen-on-stdin"],
       "test.coverage": ["coveralls.html"]
     ]
+  end
+
+  defp dep(app, requirement, opts \\ []) do
+    if bootstrap_deps?() do
+      opts
+      |> Keyword.put(:path, Path.join("deps", Atom.to_string(app)))
+      |> Keyword.put_new(:override, true)
+      |> then(&{app, &1})
+    else
+      if opts == [] do
+        {app, requirement}
+      else
+        {app, requirement, opts}
+      end
+    end
+  end
+
+  defp bootstrap_deps? do
+    System.get_env("BOOTSTRAP_HEX_DEPS") in ["1", "true"]
   end
 end

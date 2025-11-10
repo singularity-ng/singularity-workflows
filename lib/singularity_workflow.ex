@@ -1,11 +1,11 @@
 defmodule Singularity.Workflow do
   @moduledoc """
-  Singularity.Workflow - Complete workflow orchestration with Genesis v2 (Self-Improving Workflows).
+  Singularity.Workflow - Complete workflow orchestration with self-improving capabilities.
 
   A unified package providing complete workflow orchestration capabilities,
   combining PGMQ-based message queuing, HTDAG goal decomposition, workflow execution,
-  and real-time notifications. Includes **Genesis v2** - self-improving workflows that
-  learn and adapt from execution history via `Lineage` tracking and `OrchestratorOptimizer`.
+  and real-time notifications. Includes workflow optimization features that learn and
+  adapt from execution history via `Lineage` tracking and `OrchestratorOptimizer`.
 
   Converts high-level goals into executable task graphs with automatic dependency
   resolution and parallel execution. Workflows automatically improve over time
@@ -90,7 +90,7 @@ defmodule Singularity.Workflow do
   - **Map Steps** - Variable task counts (`initial_tasks: N`) for bulk processing
   - **Dependency Merging** - Steps receive outputs from all dependencies
   - **Multi-Instance** - Horizontal scaling via pgmq + PostgreSQL
-  - **Genesis v2 (Self-Improving)** - Lineage tracking + OrchestratorOptimizer for adaptive learning
+  - **Self-Improving Workflows** - Lineage tracking + OrchestratorOptimizer for adaptive learning
 
   ## Quick Start
 
@@ -160,9 +160,9 @@ defmodule Singularity.Workflow do
         ]
       end
 
-  ## Genesis v2: Self-Improving Workflows
+  ## Self-Improving Workflows
 
-  Singularity.Workflow includes **Genesis v2** for automatic workflow optimization:
+  Singularity.Workflow includes automatic workflow optimization features:
 
   **Lineage Tracking** (`Singularity.Workflow.Lineage`):
   - Tracks complete execution history (genotype + phenotype + metrics)

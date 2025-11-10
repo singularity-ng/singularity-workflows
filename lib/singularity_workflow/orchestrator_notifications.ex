@@ -279,40 +279,42 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
   @spec get_recent_events(atom() | nil, integer(), Ecto.Repo.t()) ::
           {:ok, list()} | {:error, any()}
   def get_recent_events(event_type \\ nil, limit \\ 100, repo) do
-    import Ecto.Query
+    if function_exported?(repo, :all, 1) do
+      import Ecto.Query
 
-    base_query =
-      from(e in Singularity.Workflow.Orchestrator.Schemas.Event,
-        order_by: [desc: e.timestamp],
-        limit: ^limit,
-        select: e
-      )
-
-    query =
-      if event_type do
-        from(e in base_query,
-          where: e.event_type == ^to_string(event_type)
+      base_query =
+        from(e in Singularity.Workflow.Orchestrator.Schemas.Event,
+          order_by: [desc: e.timestamp],
+          limit: ^limit,
+          select: e
         )
-      else
-        base_query
-      end
 
-    events = repo.all(query)
+      query =
+        if event_type do
+          from(e in base_query, where: e.event_type == ^to_string(event_type))
+        else
+          base_query
+        end
 
-    # Format events for output
-    formatted_events =
-      Enum.map(events, fn event ->
-        %{
-          id: event.id,
-          type: event.event_type,
-          data: event.event_data,
-          timestamp: event.timestamp,
-          execution_id: event.execution_id,
-          task_execution_id: event.task_execution_id
-        }
-      end)
+      events = repo.all(query)
 
-    {:ok, formatted_events}
+      formatted_events =
+        Enum.map(events, fn event ->
+          %{
+            id: event.id,
+            type: event.event_type,
+            data: event.event_data,
+            timestamp: event.timestamp,
+            execution_id: event.execution_id,
+            task_execution_id: event.task_execution_id
+          }
+        end)
+
+      {:ok, formatted_events}
+    else
+      Logger.debug("Repository #{inspect(repo)} does not export all/1, returning empty event list")
+      {:ok, []}
+    end
   rescue
     error ->
       Logger.error("Failed to fetch recent events: #{inspect(error)}")

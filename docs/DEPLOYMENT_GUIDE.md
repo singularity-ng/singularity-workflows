@@ -167,19 +167,6 @@ SELECT cron.schedule(
   'SELECT Singularity.Storage.ValidationMetricsStore.sync_with_centralcloud();'
 );
 
--- Genesis v2: Publish learned rules every 6 hours
-SELECT cron.schedule(
-  'genesis-v2-publish-rules',
-  '0 */6 * * *',
-  'SELECT Singularity.Genesis.GenesisPublisher.publish_rules();'
-);
-
--- Genesis v2: Import evolved rules every 4 hours
-SELECT cron.schedule(
-  'genesis-v2-import-rules',
-  '0 */4 * * *',
-  'SELECT Singularity.Genesis.GenesisPublisher.import_rules_from_genesis();'
-);
 ```
 
 ### Database Maintenance
