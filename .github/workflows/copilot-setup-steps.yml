@@ -51,15 +51,40 @@ jobs:
           elixir-version: '1.19'
           otp-version: '28'
 
-      - name: Restore Elixir dependencies cache
+      - name: Cache Mix dependencies
         uses: actions/cache@v4
         with:
           path: deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-deps-
 
-      - name: Install Elixir dependencies
+      - name: Cache compiled build
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: ${{ runner.os }}-mix-build-${{ hashFiles('**/mix.lock') }}-${{ hashFiles('lib/**/*.ex') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-build-${{ hashFiles('**/mix.lock') }}-
+            ${{ runner.os }}-mix-build-
+
+      - name: Cache PLT files
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-${{ hashFiles('**/mix.lock') }}-${{ hashFiles('lib/**/*.ex') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-${{ hashFiles('**/mix.lock') }}-
+            ${{ runner.os }}-plt-
+
+      - name: Install dependencies
         run: mix deps.get
+
+      - name: Compile dependencies
+        run: mix deps.compile
+
+      - name: Compile application
+        run: mix compile
 
       - name: Wait for PostgreSQL and create test database
         run: |
