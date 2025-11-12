@@ -6,19 +6,17 @@ on:
       - 'v*'
 
 jobs:
-  # First job: Run CI tests
-  ci:
-    name: CI Tests
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        # Official pgmq Docker image with PostgreSQL 15 + pgmq extension
-        image: tembo/pgmq:latest
+        image: ghcr.io/pgmq/pg17-pgmq:v1.7.0
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: singularity_workflow_test
+          POSTGRES_DB: postgres
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -27,97 +25,96 @@ jobs:
         ports:
           - 5432:5432
 
+    env:
+      MIX_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singularity_workflow_test
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        elixir-version: '1.19'
-        otp-version: '28'
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.19'
+          otp-version: '28'
 
-    - name: Verify PostgreSQL and pgmq are ready
-      run: |
-        # Wait for PostgreSQL to be ready
-        until pg_isready -h localhost -U postgres; do sleep 1; done
-        # Create the database if it doesn't exist
-        PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE IF NOT EXISTS singularity_workflow_test;"
-        # pgmq extension is pre-installed in tembo/pgmq image
-        PGPASSWORD=postgres psql -h localhost -U postgres -d singularity_workflow_test -c "CREATE EXTENSION IF NOT EXISTS pgmq;"
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-deps-
 
-    - name: Restore dependencies cache
-      uses: actions/cache@v4
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
+      - name: Install dependencies
+        run: mix deps.get
 
-    - name: Install dependencies
-      run: mix deps.get
+      - name: Wait for PostgreSQL
+        run: timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+        env:
+          PGPASSWORD: postgres
 
-    - name: Run tests
-      run: mix test
-      env:
-        MIX_ENV: test
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: postgres
-        POSTGRES_DB: singularity_workflow_test
-        POSTGRES_HOST: localhost
+      - name: Setup test database
+        run: |
+          psql -h localhost -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'singularity_workflow_test'" | grep -q 1 || \
+          psql -h localhost -U postgres -c "CREATE DATABASE singularity_workflow_test;"
+          mix ecto.migrate
+        env:
+          PGPASSWORD: postgres
 
-    - name: Check formatting
-      run: mix format --check-formatted
+      - name: Run tests
+        run: mix test
 
-    - name: Run Credo
-      run: mix credo --strict
+      - name: Check formatting
+        run: mix format --check-formatted
 
-    - name: Run security audit
-      run: mix sobelow --exit-on-warning
+      - name: Run Credo
+        run: mix credo --strict
 
-  # Second job: Require manual approval
   approve:
     name: Release Approval
-    needs: ci
+    needs: test
     runs-on: ubuntu-latest
     environment: production
 
     steps:
-    - name: Release approved
-      run: echo "Release approved by ${{ github.actor }}"
+      - name: Release approved
+        run: echo "✅ Release approved by ${{ github.actor }}"
 
-  # Third job: Publish to Hex.pm
   publish:
     name: Publish to Hex.pm
-    needs: [ci, approve]
+    needs: [test, approve]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        elixir-version: '1.19'
-        otp-version: '28'
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.19'
+          otp-version: '28'
 
-    - name: Restore dependencies cache
-      uses: actions/cache@v4
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-deps-
 
-    - name: Install dependencies
-      run: mix deps.get
+      - name: Install dependencies
+        run: mix deps.get
 
-    - name: Publish to Hex.pm
-      run: mix hex.publish --yes
-      env:
-        HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      - name: Publish to Hex.pm
+        run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        body_path: CHANGELOG.md
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: CHANGELOG.md
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

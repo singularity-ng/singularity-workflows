@@ -1,220 +1,31 @@
-# Development Environment Setup Guide
+# Singularity.Workflow Setup Guide
 
-This guide provides comprehensive instructions for setting up your ex_pgflow development environment. Choose the method that best fits your workflow.
+Simple setup guide for Singularity.Workflow library development.
 
-## Quick Setup (Recommended)
+## Prerequisites
 
-The easiest way to get started:
+- [Nix package manager](https://nixos.org/download.html) installed
+- Git
+
+## Setup (One Command!)
 
 ```bash
-./scripts/setup-dev-environment.sh
+# Clone repository
+git clone https://github.com/Singularity-ng/singularity-workflows.git
+cd singularity-workflows
+
+# Enter Nix shell
+nix develop
 ```
 
-This interactive script will guide you through the setup process.
-
-## Setup Methods
-
-### Method 1: Nix (Recommended) ⭐
-
-**Benefits:**
-- All dependencies managed automatically (Elixir 1.19, Erlang, PostgreSQL 18, pgmq)
-- Reproducible environment across all platforms
-- Zero version conflicts
-- Auto-starts PostgreSQL in dev shell
-
-**Prerequisites:**
-- None! The setup script will install Nix for you
-
-**Setup:**
-
-1. Run the setup script:
-   ```bash
-   ./scripts/setup-dev-environment.sh --method nix
-   ```
-
-2. Or manually install Nix with flakes support:
-   ```bash
-   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-   ```
-
-3. Enter the development shell:
-   ```bash
-   nix develop
-   ```
-
-4. Alternatively, use direnv for automatic environment loading:
-   ```bash
-   # Install direnv
-   nix-env -iA nixpkgs.direnv
-   
-   # Add to your shell rc file (~/.bashrc, ~/.zshrc, etc.)
-   eval "$(direnv hook bash)"  # or zsh, fish, etc.
-   
-   # Allow direnv for this project
-   direnv allow
-   
-   # Now the environment loads automatically when you cd into the directory!
-   ```
-
-**What you get:**
+That's it! Nix automatically provides:
 - Elixir 1.19.x
 - Erlang/OTP 28
 - PostgreSQL 18 with pgmq extension
-- All build tools (mix, rebar3, etc.)
+- All development tools (gh, tree, etc.)
 - PostgreSQL auto-starts and auto-stops with the shell
 
-### Method 2: Docker (PostgreSQL Only)
-
-**Benefits:**
-- Isolated PostgreSQL environment
-- No PostgreSQL installation needed on host
-- Easy to reset/clean
-
-**Prerequisites:**
-- Docker and docker-compose installed
-- Elixir and Erlang installed separately (see Method 3)
-
-**Setup:**
-
-1. Start PostgreSQL with pgmq:
-   ```bash
-   docker-compose up -d
-   ```
-
-2. Verify PostgreSQL is running:
-   ```bash
-   docker-compose ps
-   ```
-
-3. Set database URL:
-   ```bash
-   export DATABASE_URL="postgresql://postgres:postgres@localhost:5433/postgres"
-   ```
-
-4. Add to your shell rc file to persist:
-   ```bash
-   echo 'export DATABASE_URL="postgresql://postgres:postgres@localhost:5433/postgres"' >> ~/.bashrc
-   ```
-
-**Managing Docker:**
-```bash
-# Start PostgreSQL
-docker-compose up -d
-
-# Stop PostgreSQL
-docker-compose down
-
-# View logs
-docker-compose logs -f
-
-# Reset database (delete all data)
-docker-compose down -v
-```
-
-**Note:** You still need to install Elixir and Erlang separately (see Method 3).
-
-### Method 3: Native Installation
-
-**Benefits:**
-- No additional tools required
-- Direct access to all components
-- Full control over versions
-
-**Prerequisites:**
-- Package manager (apt, brew, dnf, etc.)
-
-#### Install Elixir and Erlang
-
-**macOS (using Homebrew):**
-```bash
-brew install elixir
-```
-
-**Ubuntu/Debian:**
-```bash
-# Add Erlang Solutions repository
-wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb
-sudo dpkg -i erlang-solutions_2.0_all.deb
-sudo apt update
-
-# Install Elixir and Erlang
-sudo apt install elixir erlang
-```
-
-**Using asdf (version manager - recommended for multiple projects):**
-```bash
-# Install asdf
-git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.14.0
-
-# Add to your shell rc file
-echo '. "$HOME/.asdf/asdf.sh"' >> ~/.bashrc
-
-# Install plugins
-asdf plugin add erlang
-asdf plugin add elixir
-
-# Install versions
-asdf install erlang 27.0
-asdf install elixir 1.17.0-otp-27
-
-# Set versions for this project
-asdf local erlang 27.0
-asdf local elixir 1.17.0-otp-27
-```
-
-#### Install PostgreSQL
-
-**macOS (using Homebrew):**
-```bash
-brew install postgresql@18
-brew services start postgresql@18
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-```
-
-#### Install pgmq Extension
-
-**Option A: Using Docker image (easiest)**
-```bash
-docker run -d --name pgmq-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  ghcr.io/pgmq/pg18-pgmq:latest
-```
-
-**Option B: Build from source**
-```bash
-git clone https://github.com/tembo-io/pgmq.git
-cd pgmq
-make install
-```
-
-**Option C: Using PGXN**
-```bash
-pgxn install pgmq
-```
-
-#### Setup Database
-
-```bash
-# Create database
-createdb ex_pgflow
-
-# Install pgmq extension
-psql ex_pgflow -c "CREATE EXTENSION IF NOT EXISTS pgmq;"
-
-# Set environment variable
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ex_pgflow"
-```
-
-## Common Setup Steps (All Methods)
-
-After choosing your installation method, run these steps:
+## First Steps
 
 ### 1. Install Dependencies
 
@@ -225,7 +36,7 @@ mix deps.get
 ### 2. Setup Database
 
 ```bash
-# Create database (if not exists)
+# Create database
 mix ecto.create
 
 # Run migrations
@@ -247,61 +58,101 @@ mix test
 # Format code
 mix format
 
-# Run linter
-mix credo
+# Lint code
+mix credo --strict
 
 # Type checking
 mix dialyzer
 
-# Security analysis
-mix sobelow
+# Or run all checks at once
+mix quality
 ```
 
-## Verification Checklist
+## Development Workflow
 
-Ensure your environment is properly set up:
+```bash
+# 1. Enter Nix shell (if not already)
+nix develop
 
-- [ ] Elixir installed (`elixir --version` shows 1.14+)
-- [ ] Mix available (`mix --version`)
-- [ ] PostgreSQL running (`pg_isready -h localhost`)
-- [ ] pgmq extension installed (check in psql: `\dx pgmq`)
-- [ ] Database created (`psql ex_pgflow -c "SELECT 1"`)
-- [ ] Dependencies installed (`mix deps.get` completes)
-- [ ] Tests pass (`mix test` all green)
-- [ ] Code compiles (`mix compile` no errors)
+# 2. Pull latest changes
+git pull
+
+# 3. Update dependencies
+mix deps.get
+
+# 4. Run migrations
+mix ecto.migrate
+
+# 5. Run tests
+mix test
+
+# 6. Make your changes...
+
+# 7. Run quality checks before committing
+mix quality
+mix test
+```
+
+## Installing Nix
+
+If you don't have Nix installed:
+
+### Linux / macOS
+
+```bash
+# Install Nix (official installer)
+sh <(curl -L https://nixos.org/nix/install) --daemon
+
+# Or use determinate systems installer (recommended)
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+### Enable Flakes
+
+Add to `~/.config/nix/nix.conf` or `/etc/nix/nix.conf`:
+
+```
+experimental-features = nix-command flakes
+```
 
 ## Troubleshooting
 
-### Elixir not found
+### Nix not found
+
+**Error:** `nix: command not found`
 
 **Solution:**
 ```bash
-# Check if Elixir is in PATH
-which elixir
+# Install Nix
+sh <(curl -L https://nixos.org/nix/install) --daemon
 
-# If using Nix, ensure you're in the dev shell
-nix develop
-
-# If using asdf, ensure versions are set
-asdf current
+# Reload shell
+source ~/.bashrc  # or ~/.zshrc
 ```
 
-### PostgreSQL connection failed
+### Flakes not enabled
+
+**Error:** `error: experimental Nix feature 'flakes' is disabled`
 
 **Solution:**
 ```bash
-# Check if PostgreSQL is running
-pg_isready -h localhost
+# Enable flakes
+mkdir -p ~/.config/nix
+echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
+```
 
-# Start PostgreSQL
-# macOS: brew services start postgresql@18
-# Linux: sudo systemctl start postgresql
+### PostgreSQL connection issues
 
-# Check DATABASE_URL is set
-echo $DATABASE_URL
+**Error:** `Connection refused` or `could not connect to server`
 
-# Test connection
-psql $DATABASE_URL -c "SELECT 1"
+**Solution:**
+```bash
+# Exit and re-enter Nix shell
+exit
+nix develop
+
+# PostgreSQL should start automatically
+# Wait a few seconds for it to be ready
 ```
 
 ### pgmq extension not found
@@ -310,141 +161,90 @@ psql $DATABASE_URL -c "SELECT 1"
 
 **Solution:**
 ```bash
-# Option 1: Use Docker with pre-installed pgmq
-docker run -d --name pgmq-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  ghcr.io/pgmq/pg18-pgmq:latest
-
-# Option 2: Install pgmq manually
-# Follow instructions at: https://github.com/tembo-io/pgmq
-
-# Option 3: Use Nix (includes everything)
+# Use Nix (includes pgmq automatically)
 nix develop
+
+# Verify pgmq is available
+psql $DATABASE_URL -c "CREATE EXTENSION IF NOT EXISTS pgmq;"
 ```
 
 ### Mix dependencies won't compile
 
+**Error:** Compilation errors or dependency conflicts
+
 **Solution:**
 ```bash
-# Clean build artifacts
+# Clean and reinstall
 mix deps.clean --all
-mix clean
-
-# Rebuild
+rm -rf _build deps
 mix deps.get
 mix compile
 ```
 
-### Dialyzer taking too long
-
-**Solution:**
-```bash
-# Dialyzer builds PLTs on first run (can take 10+ minutes)
-# Subsequent runs are much faster
-
-# Clean and rebuild PLTs if needed
-rm -rf priv/plts
-mix dialyzer
-```
-
-### Tests failing
-
-**Solution:**
-```bash
-# Ensure PostgreSQL is running
-pg_isready -h localhost
-
-# Reset test database
-MIX_ENV=test mix ecto.reset
-
-# Run tests again
-mix test
-
-# Run tests with detailed output
-mix test --trace
-```
-
-## Environment Variables
-
-Key environment variables for development:
+## Common Commands Reference
 
 ```bash
-# Database connection
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ex_pgflow"
+# Database operations
+mix ecto.create              # Create database
+mix ecto.migrate             # Run migrations
+mix ecto.rollback            # Rollback last migration
+mix ecto.reset               # Drop, create, and migrate
+psql $DATABASE_URL           # PostgreSQL shell
 
-# Test database (optional, defaults to ex_pgflow_test)
-export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ex_pgflow_test"
+# Testing
+mix test                     # Run all tests
+mix test --watch             # Watch mode
+mix test path/to/test.exs    # Run specific test file
+mix coveralls.html           # Generate coverage report
 
-# Mix environment
-export MIX_ENV=dev  # or test, prod
+# Code quality
+mix format                   # Format code
+mix credo --strict           # Lint code
+mix dialyzer                 # Type checking
+mix sobelow                  # Security scan
+mix quality                  # Run all checks
 
-# Elixir/Erlang paths (usually set automatically)
-export ERL_AFLAGS="-kernel shell_history enabled"
+# Documentation
+mix docs                     # Generate documentation
+
+# Nix
+nix develop                  # Enter dev shell
+nix flake update             # Update dependencies
+exit                         # Exit shell (stops PostgreSQL)
 ```
 
-## IDE Setup
+## direnv Integration (Optional)
 
-### VS Code
+For automatic environment loading:
 
-Recommended extensions:
-```json
-{
-  "recommendations": [
-    "jakebecker.elixir-ls",
-    "pantajoe.vscode-elixir-credo",
-    "direnv.direnv"
-  ]
-}
+```bash
+# Install direnv
+nix-env -i direnv
+
+# Add to ~/.bashrc or ~/.zshrc
+eval "$(direnv hook bash)"  # or zsh
+
+# Allow in project directory
+cd singularity-workflows
+direnv allow
+
+# Now automatically enters Nix shell when cd'ing into directory
 ```
 
-### Emacs
+## Additional Resources
 
-Use `alchemist` or `lsp-mode` with `elixir-ls`.
-
-### Vim/Neovim
-
-Use `vim-elixir` with `coc-elixir` or `nvim-lspconfig` with `elixir-ls`.
-
-## Next Steps
-
-Once your environment is set up:
-
-1. Read [GETTING_STARTED.md](GETTING_STARTED.md) for your first workflow
-2. Review [ARCHITECTURE.md](ARCHITECTURE.md) for technical details
-3. Check [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
-4. Start coding! 🚀
+- [Nix Documentation](https://nixos.org/manual/nix/stable/)
+- [Elixir Documentation](https://elixir-lang.org/docs.html)
+- [Phoenix Framework](https://phoenixframework.org/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
 ## Getting Help
 
-- **Issues with setup?** Open a GitHub issue with the "question" label
-- **Documentation unclear?** Submit a PR with improvements
-- **Need help?** Check existing issues or discussions
+- Check [QUICKREF.md](QUICKREF.md) for quick command reference
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
+- See [docs/](docs/) for comprehensive documentation
+- Open an issue on GitHub for bugs or questions
 
-## Quick Reference
+---
 
-```bash
-# Development workflow
-mix test                    # Run tests
-mix test.watch              # Auto-run tests on file changes
-mix quality                 # Run all quality checks
-mix format                  # Format code
-mix credo --strict          # Lint code
-mix dialyzer                # Type check
-mix docs                    # Generate documentation
-
-# Database management
-mix ecto.create             # Create database
-mix ecto.migrate            # Run migrations
-mix ecto.rollback           # Rollback last migration
-mix ecto.reset              # Drop, create, and migrate
-
-# Docker (if using docker-compose)
-docker-compose up -d        # Start PostgreSQL
-docker-compose down         # Stop PostgreSQL
-docker-compose logs -f      # View logs
-
-# Nix (if using Nix)
-nix develop                 # Enter dev shell
-direnv allow                # Allow auto-loading
-```
+**Remember:** Just `nix develop` and you're ready to code! 🚀

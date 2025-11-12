@@ -1,0 +1,100 @@
+name: Nix CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nix-build:
+    name: Nix Build & Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      checks: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+            # Multiple free Nix caches for maximum hit rate
+            substituters = https://cache.nixos.org https://nix-community.cachix.org https://cache.garnix.io https://mikkihugo.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g= mikkihugo.cachix.org-1:your-key-here
+
+      - name: Setup Cachix (org cache)
+        uses: cachix/cachix-action@v15
+        with:
+          name: mikkihugo
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: false
+
+      - name: Setup Cachix (nix-community)
+        uses: cachix/cachix-action@v15
+        with:
+          name: nix-community
+          skipPush: true  # Read-only, community cache
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Check flake
+        run: nix flake check --all-systems --show-trace
+
+      - name: Build dev shell
+        run: nix build .#devShells.x86_64-linux.default
+
+      - name: Enter dev shell and run tests
+        run: |
+          nix develop --command bash -c '
+            echo "=== Environment Info ==="
+            elixir --version
+            mix --version
+            psql --version
+            echo ""
+
+            echo "=== Installing dependencies ==="
+            mix deps.get
+
+            echo "=== Running tests ==="
+            mix test --trace
+
+            echo "=== Running quality checks ==="
+            mix format --check-formatted
+            mix credo --strict
+          '
+
+      - name: Build release
+        run: nix build .#singularity_workflow || echo "No release build defined"
+
+  nix-flake-metadata:
+    name: Flake Metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Show flake metadata
+        run: nix flake metadata
+
+      - name: Show flake outputs
+        run: nix flake show

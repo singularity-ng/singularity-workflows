@@ -1,31 +1,33 @@
-name: "Copilot Setup Steps"
+name: CI
 
-# Automatically run the setup steps when they are changed to allow for easy validation, and
-# allow manual testing through the repository's "Actions" tab
 on:
-  workflow_dispatch:
   push:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
+    branches: [main]
   pull_request:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
-  copilot-setup-steps:
+  test:
+    name: Test (Elixir ${{ matrix.elixir }} / OTP ${{ matrix.otp }})
     runs-on: ubuntu-latest
 
-    # Set the permissions to the lowest permissions possible needed for your steps.
-    # Copilot will be given its own token for its operations.
+    strategy:
+      fail-fast: false
+      matrix:
+        elixir: ['1.19']
+        otp: ['28']
+
     permissions:
-      # If you want to clone the repository as part of your setup steps, for example to install dependencies, you'll need the `contents: read` permission. If you don't clone the repository in your setup steps, Copilot will do this for you automatically after the steps complete.
       contents: read
+      checks: write
 
     services:
       postgres:
-        # Use official pgmq image with PostgreSQL 17 and pgmq pre-installed
-        # pgmq is REQUIRED for task coordination and queue management
         image: ghcr.io/pgmq/pg17-pgmq:v1.7.0
         env:
           POSTGRES_USER: postgres
@@ -39,8 +41,68 @@ jobs:
         ports:
           - 5432:5432
 
-    # You can define any steps you want, and they will run before the agent starts.
-    # If you do not check out your code, Copilot will do this for you.
+    env:
+      MIX_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singularity_workflow_test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-deps-
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: ${{ runner.os }}-mix-build-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-build-${{ matrix.elixir }}-${{ matrix.otp }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Compile dependencies
+        run: mix deps.compile
+
+      - name: Compile application (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+        env:
+          PGPASSWORD: postgres
+
+      - name: Setup test database
+        run: |
+          psql -h localhost -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'singularity_workflow_test'" | grep -q 1 || \
+          psql -h localhost -U postgres -c "CREATE DATABASE singularity_workflow_test;"
+          mix ecto.migrate
+        env:
+          PGPASSWORD: postgres
+
+      - name: Run tests
+        run: mix test --trace
+
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,29 +113,120 @@ jobs:
           elixir-version: '1.19'
           otp-version: '28'
 
-      - name: Restore Elixir dependencies cache
+      - name: Restore dependencies cache
         uses: actions/cache@v4
         with:
           path: deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-deps-
 
-      - name: Install Elixir dependencies
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: ${{ runner.os }}-mix-build-quality-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-build-quality-
+
+      - name: Restore PLT cache
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-plt-
+
+      - name: Install dependencies
         run: mix deps.get
 
-      - name: Wait for PostgreSQL and create test database
-        run: |
-          # Wait for PostgreSQL to be ready
-          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do echo "Waiting for postgres..."; sleep 1; done'
-          sleep 1
+      - name: Check code formatting
+        run: mix format --check-formatted
 
-          # Create test database idempotently
-          psql -h localhost -p 5432 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'singularity_workflow_test'" | grep -q 1 || psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE singularity_workflow_test;"
+      - name: Run Credo (strict)
+        run: mix credo --strict
+
+      - name: Run Dialyzer
+        run: mix dialyzer --format github
+
+      - name: Run Sobelow security scan
+        run: mix sobelow --exit-on-warning --skip
+
+      - name: Audit dependencies
+        run: mix deps.audit
+
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: ghcr.io/pgmq/pg17-pgmq:v1.7.0
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      MIX_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singularity_workflow_test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.19'
+          otp-version: '28'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-deps-
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: _build
+          key: ${{ runner.os }}-mix-build-test-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-build-test-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
         env:
           PGPASSWORD: postgres
 
-      - name: Run migrations
-        run: mix ecto.migrate
+      - name: Setup test database
+        run: |
+          psql -h localhost -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'singularity_workflow_test'" | grep -q 1 || \
+          psql -h localhost -U postgres -c "CREATE DATABASE singularity_workflow_test;"
+          mix ecto.migrate
         env:
-          MIX_ENV: test
-          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/singularity_workflow_test"
+          PGPASSWORD: postgres
+
+      - name: Run tests with coverage
+        run: mix coveralls.json
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./cover/excoveralls.json
+          flags: unittests
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

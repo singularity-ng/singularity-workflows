@@ -392,10 +392,7 @@ sudo nixos-rebuild switch --flake .#your-hostname
 
 ### Docker (Alternative)
 
-```dockerfile
-# See docker-compose.yml for complete setup
-docker-compose up -d
-```
+Users deploying applications that use Singularity.Workflow can containerize their own applications. See README.md for Docker examples.
 
 ### Manual Deployment
 

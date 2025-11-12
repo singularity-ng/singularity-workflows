@@ -1,0 +1,38 @@
+name: Publish to FlakeHub
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  flakehub-publish:
+    name: Publish to FlakeHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+
+      - name: Publish to FlakeHub
+        uses: DeterminateSystems/flakehub-push@v4
+        with:
+          visibility: public
+          name: Singularity-ng/singularity-workflows
+          rolling: false
+          tag: ${{ github.ref_name }}
+
+      - name: Summary
+        run: |
+          echo "✅ Published to FlakeHub!"
+          echo "📦 Available at: https://flakehub.com/flake/Singularity-ng/singularity-workflows"
+          echo "🔧 Use in flake.nix:"
+          echo "    inputs.singularity-workflows.url = \"https://flakehub.com/f/Singularity-ng/singularity-workflows/*.tar.gz\";"

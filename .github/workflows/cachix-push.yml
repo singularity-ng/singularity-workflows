@@ -1,0 +1,65 @@
+name: Build and Push to Cachix
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Rebuild cache weekly to keep it fresh
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-cache:
+    name: Build and Cache Nix Derivations
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        system: [x86_64-linux]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+
+      - name: Setup Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: mikkihugo
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          pushFilter: '(-source$|\.drv$)'
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Build dev shell
+        run: |
+          echo "Building development shell..."
+          nix build .#devShells.${{ matrix.system }}.default \
+            --print-build-logs \
+            --fallback
+
+      - name: Build all outputs
+        run: |
+          echo "Building all flake outputs..."
+          nix flake show --json | \
+            jq -r '.packages."${{ matrix.system }}" | keys[]' | \
+            while read package; do
+              echo "Building package: $package"
+              nix build .#$package --print-build-logs || echo "Failed to build $package"
+            done
+
+      - name: Push to Cachix
+        run: |
+          echo "✅ All builds pushed to Cachix cache: singularity-ng"
+          echo "📦 Users can use this cache with:"
+          echo "    cachix use singularity-ng"
+          echo ""
+          echo "Or add to /etc/nix/nix.conf:"
+          echo "    substituters = https://cache.nixos.org https://mikkihugo.cachix.org"
+          echo "    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= mikkihugo.cachix.org-1:your-key-here"

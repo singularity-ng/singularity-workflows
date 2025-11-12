@@ -1,118 +1,94 @@
 # Scripts Directory
 
-This directory contains helper scripts for ex_pgflow development.
+Helper scripts for Singularity.Workflow library management.
 
-## Development Scripts
+## Development Setup
 
-### `setup-dev-environment.sh`
+**Just use Nix:**
+```bash
+nix develop  # Everything is automatically configured
+```
 
-Interactive script to set up your development environment. Supports three methods:
+Nix provides:
+- Elixir 1.19.x
+- Erlang/OTP 28
+- PostgreSQL 18 with pgmq extension (auto-starts/stops)
+- All development tools (gh, tree, etc.)
 
-1. **Nix** (recommended) - Installs Elixir, Erlang, PostgreSQL with pgmq automatically
-2. **Docker** - Runs PostgreSQL with pgmq in Docker (requires separate Elixir/Erlang installation)
-3. **Native** - Guides you through manual installation of all dependencies
+## Available Scripts
+
+### `bootstrap_deps.exs`
+
+Offline dependency bootstrapping for CI environments.
 
 **Usage:**
 ```bash
-# Interactive mode
-./scripts/setup-dev-environment.sh
-
-# Specify method
-./scripts/setup-dev-environment.sh --method nix
-./scripts/setup-dev-environment.sh --method docker
-./scripts/setup-dev-environment.sh --method native
+BOOTSTRAP_HEX_DEPS=1 mix run scripts/bootstrap_deps.exs
 ```
 
-**Or via Makefile:**
-```bash
-make setup          # Interactive
-make setup-nix      # Nix method
-make setup-docker   # Docker method
-```
+### `release.sh`
 
-### `check-environment.sh`
-
-Validates your development environment setup. Checks:
-- Elixir and Erlang installation
-- PostgreSQL server status
-- Database connectivity
-- pgmq extension installation
-- Project dependencies
-- Compilation status
+Creates a new release with version bumping and changelog updates.
 
 **Usage:**
 ```bash
-./scripts/check-environment.sh
-
-# Or via Makefile
-make check
+./scripts/release.sh <major|minor|patch>
 ```
-
-## GitHub Scripts
-
-### `setup-github.sh`
-
-Sets up GitHub repository settings (for maintainers).
-
-### `setup-github-protection.sh`
-
-Configures branch protection rules (for maintainers).
 
 ### `release-checklist.sh`
 
-Release preparation checklist (for maintainers).
+Pre-release validation checklist.
 
-## Usage Examples
-
-### First-Time Setup
-
+**Usage:**
 ```bash
-# 1. Run setup script
-./scripts/setup-dev-environment.sh
-
-# 2. Verify setup
-./scripts/check-environment.sh
-
-# 3. Install dependencies
-make deps
-
-# 4. Create and migrate database
-make db-create
-make db-migrate
-
-# 5. Run tests
-make test
+./scripts/release-checklist.sh
 ```
 
-### Quick Environment Check
+### `setup-github.sh`
 
-Before starting work each day:
+Configure GitHub repository settings.
+
+**Usage:**
+```bash
+./scripts/setup-github.sh
+```
+
+### `setup-github-protection.sh`
+
+Set up branch protection rules for the repository.
+
+**Usage:**
+```bash
+./scripts/setup-github-protection.sh
+```
+
+## Common Development Commands
+
+All development is done through mix commands in the Nix shell:
 
 ```bash
-# Check environment is ready
-make check
+# Enter Nix shell
+nix develop
 
-# Start PostgreSQL if needed
-make docker-up
+# Install dependencies
+mix deps.get
 
 # Run tests
-make test
+mix test
+mix test --watch
+
+# Code quality
+mix format
+mix credo --strict
+mix dialyzer
+
+# Database
+mix ecto.create
+mix ecto.migrate
+mix ecto.reset
+
+# Generate docs
+mix docs
 ```
 
-### Troubleshooting
-
-If environment check fails:
-
-```bash
-# Re-run setup
-./scripts/setup-dev-environment.sh
-
-# Or manually fix specific issues
-# See SETUP.md for detailed troubleshooting
-```
-
-## For More Information
-
-- [SETUP.md](../SETUP.md) - Complete setup guide with troubleshooting
-- [GETTING_STARTED.md](../GETTING_STARTED.md) - First workflow tutorial
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Development guidelines
+No Makefile needed - use mix commands directly!

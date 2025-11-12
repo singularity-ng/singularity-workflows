@@ -1,0 +1,25 @@
+# Garnix CI configuration
+# https://garnix.io/docs/yaml_config
+
+# Build all flake outputs
+builds:
+  # Automatically discover and build all packages
+  include:
+    - "*.devShells.*"
+    - "*.packages.*"
+
+  # Exclude checks if they're too slow
+  exclude: []
+
+# Cache configuration
+cache:
+  # Use Garnix's free binary cache
+  enabled: true
+
+# GitHub integration
+github:
+  # Post status checks
+  status_checks: true
+
+  # Comment on PRs with build results
+  pr_comments: true
