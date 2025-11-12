@@ -8,14 +8,14 @@
       "https://nix-community.cachix.org"
       "https://cache.garnix.io"
       # Organization cache
-      "https://singularity-ng.cachix.org"
+      "https://mikkihugo.cachix.org"
     ];
     extra-trusted-public-keys = [
       # Community cache keys
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
       # Organization cache key
-      "singularity-ng.cachix.org-1:your-signing-key-here"
+      "mikkihugo.cachix.org-1:your-signing-key-here"
     ];
   };
 

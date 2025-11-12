@@ -8,7 +8,7 @@ The flake automatically tries caches in order:
 1. **cache.nixos.org** (official, always first)
 2. **nix-community.cachix.org** (community cache, high hit rate)
 3. **cache.garnix.io** (Garnix CI cache, automatic builds)
-4. **singularity-ng.cachix.org** (our cache)
+4. **mikkihugo.cachix.org** (our cache)
 5. **Magic Nix Cache** (GitHub Actions only)
 
 All caches are **FREE** and configured automatically!
@@ -130,8 +130,8 @@ The flake includes Cachix configuration:
 
 ```nix
 nixConfig = {
-  extra-substituters = [ "https://singularity-ng.cachix.org" ];
-  extra-trusted-public-keys = [ "singularity-ng.cachix.org-1:key" ];
+  extra-substituters = [ "https://mikkihugo.cachix.org" ];
+  extra-trusted-public-keys = [ "mikkihugo.cachix.org-1:key" ];
 };
 ```
 

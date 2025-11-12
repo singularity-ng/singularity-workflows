@@ -30,7 +30,7 @@ jobs:
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
         with:
-          name: singularity-ng
+          name: mikkihugo
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           pushFilter: '(-source$|\.drv$)'
 
@@ -61,5 +61,5 @@ jobs:
           echo "    cachix use singularity-ng"
           echo ""
           echo "Or add to /etc/nix/nix.conf:"
-          echo "    substituters = https://cache.nixos.org https://singularity-ng.cachix.org"
-          echo "    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= singularity-ng.cachix.org-1:your-key-here"
+          echo "    substituters = https://cache.nixos.org https://mikkihugo.cachix.org"
+          echo "    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= mikkihugo.cachix.org-1:your-key-here"

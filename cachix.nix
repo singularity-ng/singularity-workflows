@@ -28,13 +28,13 @@
 
     # Option 2: Manual nix.conf configuration
     # Add to /etc/nix/nix.conf or ~/.config/nix/nix.conf:
-    substituters = https://cache.nixos.org https://singularity-ng.cachix.org
-    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= singularity-ng.cachix.org-1:your-signing-key-here
+    substituters = https://cache.nixos.org https://mikkihugo.cachix.org
+    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= mikkihugo.cachix.org-1:your-signing-key-here
 
     # Option 3: In your flake.nix
     nixConfig = {
-      extra-substituters = [ "https://singularity-ng.cachix.org" ];
-      extra-trusted-public-keys = [ "singularity-ng.cachix.org-1:your-signing-key-here" ];
+      extra-substituters = [ "https://mikkihugo.cachix.org" ];
+      extra-trusted-public-keys = [ "mikkihugo.cachix.org-1:your-signing-key-here" ];
     };
   '';
 }
