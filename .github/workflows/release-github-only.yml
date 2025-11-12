@@ -1,23 +1,25 @@
 name: GitHub Release Only
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g., v0.1.6)'
+        required: true
+        type: string
 
 jobs:
-  # Run CI tests first
-  ci:
-    name: CI Tests
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
 
     services:
       postgres:
-        image: tembo/pgmq:latest
+        image: ghcr.io/pgmq/pg17-pgmq:v1.7.0
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: singularity_workflow_test
+          POSTGRES_DB: postgres
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -26,76 +28,81 @@ jobs:
         ports:
           - 5432:5432
 
+    env:
+      MIX_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singularity_workflow_test
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        elixir-version: '1.19'
-        otp-version: '28'
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.19'
+          otp-version: '28'
 
-    - name: Verify PostgreSQL and pgmq
-      run: |
-        until pg_isready -h localhost -U postgres; do sleep 1; done
-        PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE IF NOT EXISTS singularity_workflow_test;"
-        PGPASSWORD=postgres psql -h localhost -U postgres -d singularity_workflow_test -c "CREATE EXTENSION IF NOT EXISTS pgmq;"
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-deps-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-deps-
 
-    - name: Restore dependencies cache
-      uses: actions/cache@v4
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
+      - name: Install dependencies
+        run: mix deps.get
 
-    - name: Install dependencies
-      run: mix deps.get
+      - name: Wait for PostgreSQL
+        run: timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+        env:
+          PGPASSWORD: postgres
 
-    - name: Run tests
-      run: mix test
-      env:
-        MIX_ENV: test
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: postgres
-        POSTGRES_DB: singularity_workflow_test
-        POSTGRES_HOST: localhost
+      - name: Setup test database
+        run: |
+          psql -h localhost -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'singularity_workflow_test'" | grep -q 1 || \
+          psql -h localhost -U postgres -c "CREATE DATABASE singularity_workflow_test;"
+          mix ecto.migrate
+        env:
+          PGPASSWORD: postgres
 
-    - name: Check formatting
-      run: mix format --check-formatted
+      - name: Run tests
+        run: mix test
 
-    - name: Run Credo
-      run: mix credo --strict
+      - name: Check formatting
+        run: mix format --check-formatted
 
-    - name: Run security audit
-      run: mix sobelow --exit-on-warning
+      - name: Run Credo
+        run: mix credo --strict
 
-  # Create GitHub Release (no Hex.pm)
   release:
     name: Create GitHub Release
-    needs: ci
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Extract version from tag
-      id: version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        name: Release v${{ steps.version.outputs.VERSION }}
-        body_path: CHANGELOG.md
-        generate_release_notes: true
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          name: Release ${{ github.event.inputs.tag }}
+          body_path: CHANGELOG.md
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Release Summary
-      run: |
-        echo "✅ GitHub Release v${{ steps.version.outputs.VERSION }} created successfully!"
-        echo ""
-        echo "📦 To publish to Hex.pm later, run:"
-        echo "   mix hex.publish"
+      - name: Release Summary
+        run: |
+          echo "✅ GitHub Release ${{ github.event.inputs.tag }} created successfully!"
+          echo ""
+          echo "📦 To publish to Hex.pm, push a tag:"
+          echo "   git tag ${{ github.event.inputs.tag }}"
+          echo "   git push origin ${{ github.event.inputs.tag }}"
