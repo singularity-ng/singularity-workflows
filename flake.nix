@@ -1,6 +1,16 @@
 {
   description = "singularity_workflow - Elixir implementation of Singularity.Workflow";
 
+  # Cachix and FlakeHub integration
+  nixConfig = {
+    extra-substituters = [
+      "https://singularity-ng.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "singularity-ng.cachix.org-1:your-signing-key-here"
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
