@@ -29,11 +29,12 @@
             pkgs.nodejs  # For moon installation
             pkgs.yarn    # Alternative package manager
             pkgs.gh      # GitHub CLI for repository management
+            pkgs.tree    # Directory structure visualization
           ];
 
           shellHook = ''
             # Clear PATH and rebuild with nix packages FIRST (before system paths)
-            export PATH="${beamPackages.erlang}/bin:${elixir}/bin:${postgresqlWithExtensions}/bin:${pkgs.nodejs}/bin:${pkgs.yarn}/bin:${pkgs.gh}/bin:$PATH"
+            export PATH="${beamPackages.erlang}/bin:${elixir}/bin:${postgresqlWithExtensions}/bin:${pkgs.nodejs}/bin:${pkgs.yarn}/bin:${pkgs.gh}/bin:${pkgs.tree}/bin:$PATH"
             export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/singularity_workflow"
             echo "ShellHook PATH: $PATH"
             echo "Elixir location: $(which elixir 2>/dev/null || echo 'not found')"

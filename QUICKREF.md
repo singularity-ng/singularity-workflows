@@ -1,6 +1,6 @@
-# ExPgflow Quick Reference
+# Singularity.Workflow Quick Reference
 
-A quick reference guide for common ex_pgflow development tasks.
+A quick reference guide for common Singularity.Workflow development tasks.
 
 ## Initial Setup
 
@@ -98,10 +98,10 @@ make docker-reset
 make test
 
 # Specific file
-mix test test/pgflow/executor_test.exs
+mix test test/singularity_workflow/executor_test.exs
 
 # Specific test
-mix test test/pgflow/executor_test.exs:42
+mix test test/singularity_workflow/executor_test.exs:42
 
 # With coverage
 make test-coverage
@@ -192,10 +192,10 @@ mix test path/to/test.exs:line_number
 
 ```bash
 # Database URL
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ex_pgflow"
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/singularity_workflow"
 
 # Test database
-export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ex_pgflow_test"
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/singularity_workflow_test"
 
 # Mix environment
 export MIX_ENV=dev  # or test, prod
@@ -237,20 +237,19 @@ exit
 Add these to your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-# ExPgflow aliases
-alias pgf-test='make test'
-alias pgf-check='make check'
-alias pgf-quality='make quality'
-alias pgf-format='make format'
-alias pgf-db-reset='make db-reset'
+# Singularity.Workflow aliases
+alias sw-test='make test'
+alias sw-check='make check'
+alias sw-quality='make quality'
+alias sw-format='make format'
+alias sw-db-reset='make db-reset'
 ```
 
 ## Resources
 
 - **Setup Guide**: [SETUP.md](SETUP.md)
-- **Getting Started**: [GETTING_STARTED.md](GETTING_STARTED.md)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
-- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Scripts Documentation**: [scripts/README.md](scripts/README.md)
 
 ## Getting Help
