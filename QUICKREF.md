@@ -1,85 +1,39 @@
 # Singularity.Workflow Quick Reference
 
-A quick reference guide for common Singularity.Workflow development tasks.
+Quick reference for Singularity.Workflow library development.
 
-## Initial Setup
+## Setup
 
 ```bash
-# Run setup script (choose your method)
-./scripts/setup-dev-environment.sh
+# Enter Nix development shell (everything auto-configured)
+nix develop
 
-# Validate environment
-make check
-
-# Install dependencies
-make deps
-
-# Setup database
-make db-create
-make db-migrate
-
-# Run tests
-make test
+# That's it! PostgreSQL starts automatically with pgmq extension
 ```
 
-## Daily Development
+## Development Commands
 
+### Install Dependencies
 ```bash
-# Check environment is ready
-make check
-
-# Pull latest changes
-git pull
-
-# Update dependencies
-make deps
-
-# Run migrations
-make db-migrate
-
-# Run tests
-make test
-
-# Run tests in watch mode
-make test-watch
+mix deps.get
+mix deps.compile
 ```
 
-## Quality Checks
-
+### Database
 ```bash
-# Run all quality checks
-make quality
-
-# Individual checks
-make format      # Format code
-make lint        # Credo linter
-make dialyzer    # Type checking
-make security    # Security scan
+mix ecto.create
+mix ecto.migrate
+mix ecto.reset
+psql $DATABASE_URL  # Open PostgreSQL shell
 ```
 
-## Database Management
-
+### Testing
 ```bash
-# Create database
-make db-create
+# Run all tests
+mix test
 
-# Run migrations
-make db-migrate
-
-# Reset database (drops, creates, migrates)
-make db-reset
-
-# Open PostgreSQL shell
-make db-shell
-```
-
-## Common Tasks
-
-### Running Tests
-
-```bash
-# All tests
-make test
+# Watch mode
+mix test --watch
 
 # Specific file
 mix test test/singularity_workflow/executor_test.exs
@@ -88,91 +42,41 @@ mix test test/singularity_workflow/executor_test.exs
 mix test test/singularity_workflow/executor_test.exs:42
 
 # With coverage
-make test-coverage
-
-# Watch mode (auto-rerun on changes)
-make test-watch
+mix coveralls.html
 ```
 
-### Code Formatting
-
+### Code Quality
 ```bash
-# Check formatting
-mix format --check-formatted
+# Format code
+mix format
 
-# Format all files
-make format
-```
+# Lint
+mix credo --strict
 
-### Type Checking
+# Type check
+mix dialyzer
 
-```bash
-# Run Dialyzer
-make dialyzer
+# Security scan
+mix sobelow --exit-on-warning
 
-# Clean and rebuild PLTs (if needed)
-rm -rf priv/plts
-make dialyzer
+# All quality checks
+mix quality
 ```
 
 ### Documentation
-
 ```bash
 # Generate docs
-make docs
+mix docs
 
-# Generate and open in browser
-make docs-open
-```
-
-## Troubleshooting
-
-### Environment Issues
-
-```bash
-# Validate environment
-make check
-
-# Re-run setup
-./scripts/setup-dev-environment.sh
-```
-
-### Database Issues
-
-```bash
-# Check PostgreSQL is running
-pg_isready -h localhost
-
-# Reset database
-make db-reset
-```
-
-### Dependency Issues
-
-```bash
-# Clean and reinstall
-make clean-all
-make deps
-make compile
-```
-
-### Test Failures
-
-```bash
-# Reset test database
-MIX_ENV=test mix ecto.reset
-
-# Run with detailed output
-mix test --trace
-
-# Run specific failing test
-mix test path/to/test.exs:line_number
+# Open in browser
+open doc/index.html  # macOS
+xdg-open doc/index.html  # Linux
 ```
 
 ## Environment Variables
 
 ```bash
-# Database URL
+# Database URL (auto-set by Nix)
 export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/singularity_workflow"
 
 # Test database
@@ -193,8 +97,8 @@ git add .
 git commit -m "feat: add new feature"
 
 # Run quality checks before pushing
-make quality
-make test
+mix quality
+mix test
 
 # Push to GitHub
 git push origin feature/my-feature
@@ -203,27 +107,26 @@ git push origin feature/my-feature
 ## Nix Commands
 
 ```bash
-# Enter Nix shell
+# Enter Nix shell (auto-starts PostgreSQL)
 nix develop
 
 # Update Nix flake
 nix flake update
 
-# Exit Nix shell
+# Exit Nix shell (auto-stops PostgreSQL)
 exit
 ```
 
 ## Helpful Aliases
 
-Add these to your `~/.bashrc` or `~/.zshrc`:
+Add to `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 # Singularity.Workflow aliases
-alias sw-test='make test'
-alias sw-check='make check'
-alias sw-quality='make quality'
-alias sw-format='make format'
-alias sw-db-reset='make db-reset'
+alias sw='nix develop'
+alias sw-test='mix test'
+alias sw-quality='mix quality'
+alias sw-format='mix format'
 ```
 
 ## Resources
@@ -231,59 +134,31 @@ alias sw-db-reset='make db-reset'
 - **Setup Guide**: [SETUP.md](SETUP.md)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Scripts Documentation**: [scripts/README.md](scripts/README.md)
+- **Scripts**: [scripts/README.md](scripts/README.md)
 
-## Getting Help
-
-```bash
-# View all available make commands
-make help
-
-# Check environment
-make check
-
-# View script help
-./scripts/setup-dev-environment.sh --help
-./scripts/check-environment.sh --help
-```
-
-## Common Error Solutions
+## Common Issues
 
 ### "pgmq extension not found"
-
 ```bash
-# Use Nix (includes PostgreSQL with pgmq)
-nix develop
+nix develop  # Includes PostgreSQL with pgmq
 ```
 
 ### "mix: command not found"
-
 ```bash
-# Install Elixir
-./scripts/setup-dev-environment.sh
-
-# Or enter Nix shell
-nix develop
+nix develop  # Includes Elixir
 ```
 
 ### "Connection refused" (PostgreSQL)
-
 ```bash
-# Use Nix (auto-starts PostgreSQL)
-nix develop
-
-# Or start system PostgreSQL
-sudo systemctl start postgresql  # Linux
-brew services start postgresql   # macOS
+nix develop  # Auto-starts PostgreSQL
 ```
 
 ### "Database does not exist"
-
 ```bash
-make db-create
-make db-migrate
+mix ecto.create
+mix ecto.migrate
 ```
 
 ---
 
-**Tip**: Keep this file open in a terminal or editor for quick reference during development!
+**Tip**: Just use `nix develop` and everything works! 🎯
