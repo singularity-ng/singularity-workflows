@@ -80,7 +80,7 @@ defmodule Singularity.Workflow.MixProject do
         "Documentation" => "https://hexdocs.pm/singularity_workflow"
       },
       maintainers: ["Mikko H"],
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE.md)
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE.md CHANGELOG.md)
     ]
   end
 

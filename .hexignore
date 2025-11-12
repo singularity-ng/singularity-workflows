@@ -1,0 +1,52 @@
+# Development environment
+flake.nix
+flake.lock
+shell.nix
+.envrc
+.direnv/
+moon.yml
+
+# Development documentation
+SETUP.md
+QUICKREF.md
+CONTRIBUTING.md
+SECURITY.md
+
+# GitHub/CI
+.github/
+.git/
+.gitignore
+
+# Scripts
+scripts/
+
+# Documentation (detailed guides go to HexDocs from GitHub)
+docs/
+
+# Test files
+test/
+
+# Build artifacts
+_build/
+deps/
+*.ez
+cover/
+doc/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database files
+.postgres_data/
+.postgres.log
+.postgres_pid
+
+# Code quality tools
+.credo.exs
+.sobelow
+
+# Development dependencies
+.tool-versions
