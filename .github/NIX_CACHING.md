@@ -1,10 +1,43 @@
 # Nix Caching Setup
 
-This repository uses multiple caching strategies for optimal CI/CD performance.
+This repository uses **5 free caching layers** for maximum performance and availability.
+
+## Multi-Cache Strategy
+
+The flake automatically tries caches in order:
+1. **cache.nixos.org** (official, always first)
+2. **nix-community.cachix.org** (community cache, high hit rate)
+3. **cache.garnix.io** (Garnix CI cache, automatic builds)
+4. **singularity-ng.cachix.org** (our cache)
+5. **Magic Nix Cache** (GitHub Actions only)
+
+All caches are **FREE** and configured automatically!
 
 ## Caching Layers
 
-### 1. Cachix Binary Cache
+### 1. Nix Community Cache
+**Public cache**: `nix-community.cachix.org`
+
+- **Free**: Unlimited usage
+- **High hit rate**: Common Nix packages cached
+- **Fast**: CDN-backed
+- **Auto-configured** in flake.nix
+
+No setup needed - already configured!
+
+### 2. Garnix Cache
+**Public cache**: `cache.garnix.io`
+
+- **Free**: Unlimited usage
+- **Automatic**: Builds all flake outputs
+- **No config**: Just enable Garnix on GitHub
+- **Dashboard**: https://garnix.io
+
+Enable at: https://garnix.io (GitHub App)
+
+Configuration: `garnix.yaml` (root of repo)
+
+### 3. Cachix (Org Cache)
 **Public cache**: `singularity-ng`
 
 Stores:
@@ -21,13 +54,9 @@ nix-env -iA cachix -f https://cachix.org/api/v1/install
 cachix use singularity-ng
 ```
 
-Or add to `~/.config/nix/nix.conf`:
-```
-substituters = https://cache.nixos.org https://singularity-ng.cachix.org
-trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= singularity-ng.cachix.org-1:your-signing-key-here
-```
+Or already configured in flake.nix!
 
-### 2. Magic Nix Cache
+### 4. Magic Nix Cache
 **GitHub Actions**: Automatic caching via `magic-nix-cache-action`
 
 Benefits:
@@ -35,8 +64,9 @@ Benefits:
 - Automatic cache invalidation
 - Works across workflow runs
 - Free for public repos
+- ~90% cache hit rate
 
-### 3. FlakeHub
+### 5. FlakeHub
 **Flake registry**: Published flake for easy consumption
 
 Use in your `flake.nix`:

@@ -1,0 +1,35 @@
+name: Garnix Build
+
+# Garnix provides free Nix CI/CD with automatic caching
+# https://garnix.io
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# This workflow is intentionally minimal
+# Garnix automatically detects flake.nix and builds all outputs
+# Configuration is in garnix.yaml (root)
+
+jobs:
+  info:
+    name: Garnix Info
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Garnix Integration
+        run: |
+          echo "🎯 Garnix automatically builds this repository"
+          echo ""
+          echo "Features:"
+          echo "  ✅ Automatic flake builds"
+          echo "  ✅ Free binary cache (cache.garnix.io)"
+          echo "  ✅ Build status badges"
+          echo "  ✅ No configuration needed"
+          echo ""
+          echo "Dashboard: https://garnix.io/repo/Singularity-ng/singularity-workflows"
+          echo "Cache: https://cache.garnix.io"
+          echo ""
+          echo "All flake outputs are automatically built and cached."

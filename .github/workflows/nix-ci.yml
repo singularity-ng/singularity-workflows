@@ -30,14 +30,22 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes
-            substituters = https://cache.nixos.org https://singularity-ng.cachix.org
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= singularity-ng.cachix.org-1:your-key-here
+            # Multiple free Nix caches for maximum hit rate
+            substituters = https://cache.nixos.org https://nix-community.cachix.org https://cache.garnix.io https://singularity-ng.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g= singularity-ng.cachix.org-1:your-key-here
 
-      - name: Setup Cachix
+      - name: Setup Cachix (org cache)
         uses: cachix/cachix-action@v15
         with:
           name: singularity-ng
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: false
+
+      - name: Setup Cachix (nix-community)
+        uses: cachix/cachix-action@v15
+        with:
+          name: nix-community
+          skipPush: true  # Read-only, community cache
 
       - name: Setup Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
