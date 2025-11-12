@@ -1,0 +1,126 @@
+name: Auto PR Creation
+
+on:
+  push:
+    branches:
+      # Only create PRs from feature branches
+      - 'feat/**'
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'refactor/**'
+      - 'docs/**'
+      - 'test/**'
+      - 'claude/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-create-pr:
+    name: Auto Create PR with AI Description
+    runs-on: ubuntu-latest
+    # Only run if not already on main
+    if: github.ref != 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full history for better PR description
+
+      - name: Check if PR already exists
+        id: check-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get current branch name
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # Check if PR exists for this branch
+          PR_EXISTS=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq 'length')
+          echo "exists=$PR_EXISTS" >> $GITHUB_OUTPUT
+
+          if [ "$PR_EXISTS" -gt 0 ]; then
+            PR_NUMBER=$(gh pr list --head "$BRANCH_NAME" --base main --json number --jq '.[0].number')
+            echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "PR #$PR_NUMBER already exists for branch $BRANCH_NAME"
+          else
+            echo "No PR exists for branch $BRANCH_NAME"
+          fi
+
+      - name: Generate AI PR description
+        id: ai-description
+        if: steps.check-pr.outputs.exists == '0'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          BRANCH_NAME="${{ steps.check-pr.outputs.branch }}"
+
+          # Create PR description
+          echo "## Summary" > pr_description.md
+          echo "Changes from branch: \`$BRANCH_NAME\`" >> pr_description.md
+          echo "" >> pr_description.md
+
+          echo "## Commits" >> pr_description.md
+          git log origin/main..HEAD --pretty=format:"- %s (%h)" >> pr_description.md
+          echo "" >> pr_description.md
+          echo "" >> pr_description.md
+
+          echo "## Modified Files" >> pr_description.md
+          git diff origin/main...HEAD --name-status | head -30 >> pr_description.md
+          echo "" >> pr_description.md
+          echo "" >> pr_description.md
+
+          echo "## Changed Lines" >> pr_description.md
+          git diff origin/main...HEAD --stat >> pr_description.md
+          echo "" >> pr_description.md
+          echo "" >> pr_description.md
+
+          echo "## Testing Checklist" >> pr_description.md
+          echo "- [ ] Tests pass locally (\`mix test\`)" >> pr_description.md
+          echo "- [ ] CI checks pass (test, quality, coverage)" >> pr_description.md
+          echo "- [ ] Code formatted (\`mix format\`)" >> pr_description.md
+          echo "- [ ] Credo passes (\`mix credo --strict\`)" >> pr_description.md
+          echo "- [ ] Documentation updated if needed" >> pr_description.md
+          echo "- [ ] No security vulnerabilities introduced" >> pr_description.md
+          echo "" >> pr_description.md
+
+          echo "---" >> pr_description.md
+          echo "*Auto-generated PR - will be reviewed by Claude AI*" >> pr_description.md
+
+          # Save description for next step
+          echo "description_file=pr_description.md" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.check-pr.outputs.exists == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ steps.check-pr.outputs.branch }}"
+
+          # Extract title from first commit or branch name
+          TITLE=$(git log origin/main..HEAD --pretty=format:"%s" | head -1)
+          if [ -z "$TITLE" ]; then
+            TITLE="Changes from $BRANCH_NAME"
+          fi
+
+          # Create PR with AI-generated description
+          gh pr create \
+            --title "$TITLE" \
+            --body-file pr_description.md \
+            --base main \
+            --head "$BRANCH_NAME"
+
+          echo "✅ Pull Request created successfully!"
+
+      - name: Update existing PR
+        if: steps.check-pr.outputs.exists != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ steps.check-pr.outputs.number }}"
+          echo "✅ PR #$PR_NUMBER already exists - no action needed"
+          echo "New commits will automatically update the existing PR"
