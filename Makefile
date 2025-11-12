@@ -1,14 +1,13 @@
-.PHONY: help setup test quality clean docker-up docker-down
+.PHONY: help setup test quality clean
 
 # Default target
 help:
-	@echo "ExPgflow Development Commands"
-	@echo "=============================="
+	@echo "Singularity.Workflow Development Commands"
+	@echo "=========================================="
 	@echo ""
 	@echo "Setup:"
 	@echo "  make setup          - Set up development environment (interactive)"
 	@echo "  make setup-nix      - Set up using Nix"
-	@echo "  make setup-docker   - Set up using Docker (PostgreSQL only)"
 	@echo ""
 	@echo "Development:"
 	@echo "  make deps           - Install dependencies"
@@ -22,12 +21,6 @@ help:
 	@echo "  make db-migrate     - Run migrations"
 	@echo "  make db-reset       - Reset database"
 	@echo "  make db-shell       - Open PostgreSQL shell"
-	@echo ""
-	@echo "Docker:"
-	@echo "  make docker-up      - Start PostgreSQL with Docker"
-	@echo "  make docker-down    - Stop PostgreSQL"
-	@echo "  make docker-logs    - View PostgreSQL logs"
-	@echo "  make docker-reset   - Reset Docker environment"
 	@echo ""
 	@echo "Formatting & Linting:"
 	@echo "  make format         - Format code"
@@ -50,9 +43,6 @@ setup:
 
 setup-nix:
 	@./scripts/setup-dev-environment.sh --method nix
-
-setup-docker:
-	@./scripts/setup-dev-environment.sh --method docker
 
 # Dependencies
 deps:
@@ -121,29 +111,6 @@ db-reset:
 db-shell:
 	@echo "Opening PostgreSQL shell..."
 	@psql $(DATABASE_URL)
-
-# Docker
-docker-up:
-	@echo "Starting PostgreSQL with Docker..."
-	@docker-compose up -d
-	@echo "Waiting for PostgreSQL to be ready..."
-	@sleep 3
-	@docker-compose exec -T postgres pg_isready -U postgres || (echo "PostgreSQL not ready" && exit 1)
-	@echo "✓ PostgreSQL is ready"
-	@echo "Database URL: postgresql://postgres:postgres@localhost:5433/postgres"
-
-docker-down:
-	@echo "Stopping PostgreSQL..."
-	@docker-compose down
-	@echo "✓ PostgreSQL stopped"
-
-docker-logs:
-	@docker-compose logs -f
-
-docker-reset:
-	@echo "Resetting Docker environment..."
-	@docker-compose down -v
-	@echo "✓ Docker environment reset"
 
 # Documentation
 docs:

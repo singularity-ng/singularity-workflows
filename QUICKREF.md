@@ -73,22 +73,6 @@ make db-reset
 make db-shell
 ```
 
-## Docker Commands
-
-```bash
-# Start PostgreSQL
-make docker-up
-
-# Stop PostgreSQL
-make docker-down
-
-# View logs
-make docker-logs
-
-# Reset (delete all data)
-make docker-reset
-```
-
 ## Common Tasks
 
 ### Running Tests
@@ -158,9 +142,6 @@ make check
 ```bash
 # Check PostgreSQL is running
 pg_isready -h localhost
-
-# Start PostgreSQL (Docker)
-make docker-up
 
 # Reset database
 make db-reset
@@ -271,10 +252,7 @@ make check
 ### "pgmq extension not found"
 
 ```bash
-# Use Docker with pgmq
-make docker-up
-
-# Or use Nix
+# Use Nix (includes PostgreSQL with pgmq)
 nix develop
 ```
 
@@ -291,10 +269,10 @@ nix develop
 ### "Connection refused" (PostgreSQL)
 
 ```bash
-# Start PostgreSQL
-make docker-up
+# Use Nix (auto-starts PostgreSQL)
+nix develop
 
-# Or check system PostgreSQL
+# Or start system PostgreSQL
 sudo systemctl start postgresql  # Linux
 brew services start postgresql   # macOS
 ```

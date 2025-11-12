@@ -1,6 +1,6 @@
 # Scripts Directory
 
-This directory contains helper scripts for ex_pgflow development.
+This directory contains helper scripts for Singularity.Workflow library development.
 
 ## Development Scripts
 

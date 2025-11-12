@@ -63,57 +63,7 @@ This interactive script will guide you through the setup process.
 - All build tools (mix, rebar3, etc.)
 - PostgreSQL auto-starts and auto-stops with the shell
 
-### Method 2: Docker (PostgreSQL Only)
-
-**Benefits:**
-- Isolated PostgreSQL environment
-- No PostgreSQL installation needed on host
-- Easy to reset/clean
-
-**Prerequisites:**
-- Docker and docker-compose installed
-- Elixir and Erlang installed separately (see Method 3)
-
-**Setup:**
-
-1. Start PostgreSQL with pgmq:
-   ```bash
-   docker-compose up -d
-   ```
-
-2. Verify PostgreSQL is running:
-   ```bash
-   docker-compose ps
-   ```
-
-3. Set database URL:
-   ```bash
-   export DATABASE_URL="postgresql://postgres:postgres@localhost:5433/postgres"
-   ```
-
-4. Add to your shell rc file to persist:
-   ```bash
-   echo 'export DATABASE_URL="postgresql://postgres:postgres@localhost:5433/postgres"' >> ~/.bashrc
-   ```
-
-**Managing Docker:**
-```bash
-# Start PostgreSQL
-docker-compose up -d
-
-# Stop PostgreSQL
-docker-compose down
-
-# View logs
-docker-compose logs -f
-
-# Reset database (delete all data)
-docker-compose down -v
-```
-
-**Note:** You still need to install Elixir and Erlang separately (see Method 3).
-
-### Method 3: Native Installation
+### Method 2: Native Installation
 
 **Benefits:**
 - No additional tools required
@@ -179,12 +129,9 @@ sudo systemctl start postgresql
 
 #### Install pgmq Extension
 
-**Option A: Using Docker image (easiest)**
+**Option A: Using Nix (recommended)**
 ```bash
-docker run -d --name pgmq-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  ghcr.io/pgmq/pg18-pgmq:latest
+nix develop  # Includes PostgreSQL 18 with pgmq pre-installed
 ```
 
 **Option B: Build from source**
@@ -310,17 +257,11 @@ psql $DATABASE_URL -c "SELECT 1"
 
 **Solution:**
 ```bash
-# Option 1: Use Docker with pre-installed pgmq
-docker run -d --name pgmq-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  ghcr.io/pgmq/pg18-pgmq:latest
+# Option 1: Use Nix (recommended - includes everything)
+nix develop
 
 # Option 2: Install pgmq manually
 # Follow instructions at: https://github.com/tembo-io/pgmq
-
-# Option 3: Use Nix (includes everything)
-nix develop
 ```
 
 ### Mix dependencies won't compile
@@ -439,10 +380,9 @@ mix ecto.migrate            # Run migrations
 mix ecto.rollback           # Rollback last migration
 mix ecto.reset              # Drop, create, and migrate
 
-# Docker (if using docker-compose)
-docker-compose up -d        # Start PostgreSQL
-docker-compose down         # Stop PostgreSQL
-docker-compose logs -f      # View logs
+# Nix (auto-manages PostgreSQL)
+nix develop                 # Starts PostgreSQL automatically
+exit                        # Stops PostgreSQL on shell exit
 
 # Nix (if using Nix)
 nix develop                 # Enter dev shell
