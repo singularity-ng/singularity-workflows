@@ -899,14 +899,6 @@ defmodule Singularity.Workflow.Notifications do
 
           {:error, error}
         end
-
-      error ->
-        Logger.error("Notifications: Unexpected error sending message",
-          queue: queue_name,
-          error: Exception.format(:error, error, __STACKTRACE__),
-          attempt: attempts + 1
-        )
-        {:error, {:unexpected_error, Exception.message(error)}}
     catch
       kind, reason ->
         Logger.error("Notifications: Unexpected exception sending message",
