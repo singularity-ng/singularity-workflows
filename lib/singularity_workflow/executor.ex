@@ -94,6 +94,68 @@ defmodule Singularity.Workflow.Executor do
         {:ok, result} -> IO.inspect(result)
         {:error, reason} -> Logger.error("Workflow failed: \#{inspect(reason)}")
       end
+
+  ## Telemetry Events
+
+  This module emits telemetry events for observability. Applications can attach handlers
+  to monitor workflow execution, performance, and errors.
+
+  ### Workflow Execution Events
+
+  - `[:singularity_workflow, :executor, :execute, :start]` - Workflow execution started
+    - Measurements: `%{system_time: integer()}`
+    - Metadata: `%{workflow_module: atom(), input_size_bytes: integer(), input_keys: list()}`
+
+  - `[:singularity_workflow, :executor, :execute, :stop]` - Workflow execution completed
+    - Measurements: `%{duration: integer()}` (monotonic time units)
+    - Metadata: `%{workflow_module: atom(), run_id: binary(), status: :ok | :error | :timeout, ...}`
+
+  - `[:singularity_workflow, :executor, :execute, :exception]` - Workflow execution exception
+    - Measurements: `%{duration: integer()}`
+    - Metadata: `%{workflow_module: atom(), kind: atom(), error: binary()}`
+
+  ### Task Execution Events
+
+  - `[:singularity_workflow, :task_executor, :execute_run, :start]` - Task execution loop started
+  - `[:singularity_workflow, :task_executor, :execute_run, :stop]` - Task execution loop completed
+  - `[:singularity_workflow, :task_executor, :task, :start]` - Individual task started
+  - `[:singularity_workflow, :task_executor, :task, :stop]` - Individual task completed
+  - `[:singularity_workflow, :task_executor, :task, :completed]` - Task marked as completed in database
+  - `[:singularity_workflow, :task_executor, :task, :failed]` - Task marked as failed in database
+
+  ### Lifecycle Management Events
+
+  - `[:singularity_workflow, :executor, :cancel, :stop]` - Workflow cancelled
+  - `[:singularity_workflow, :executor, :retry, :start]` - Workflow retry started
+  - `[:singularity_workflow, :executor, :retry, :stop]` - Workflow retry completed
+  - `[:singularity_workflow, :executor, :pause, :stop]` - Workflow paused
+  - `[:singularity_workflow, :executor, :resume, :stop]` - Workflow resumed
+
+  ### Example: Attaching Telemetry Handlers
+
+      defmodule MyApp.Telemetry do
+        def setup do
+          :telemetry.attach_many(
+            "singularity-workflow-handler",
+            [
+              [:singularity_workflow, :executor, :execute, :start],
+              [:singularity_workflow, :executor, :execute, :stop],
+              [:singularity_workflow, :task_executor, :task, :start],
+              [:singularity_workflow, :task_executor, :task, :stop]
+            ],
+            &handle_event/4,
+            %{}
+          )
+        end
+
+        defp handle_event([:singularity_workflow, :executor, :execute, :stop], measurements, metadata, _config) do
+          # Send to Prometheus, DataDog, etc.
+          duration_ms = System.convert_time_unit(measurements.duration, :native, :millisecond)
+          status = metadata.status
+          
+          # Your metrics code here
+        end
+      end
   """
 
   require Logger
@@ -101,6 +163,11 @@ defmodule Singularity.Workflow.Executor do
   alias Singularity.Workflow.DAG.RunInitializer
   alias Singularity.Workflow.DAG.TaskExecutor
   alias Singularity.Workflow.DAG.WorkflowDefinition
+
+  # Maximum input size in bytes (10MB default)
+  @max_input_size_bytes 10_485_760
+  # Maximum output size in bytes (10MB default)
+  @max_output_size_bytes 10_485_760
 
   @doc """
   Execute a workflow with database-driven DAG coordination.
@@ -172,40 +239,206 @@ defmodule Singularity.Workflow.Executor do
   """
   @spec execute(module(), map(), module(), keyword()) :: {:ok, map()} | {:error, term()}
   def execute(workflow_module, input, repo, opts \\ []) do
-    Logger.info("Singularity.Workflow.Executor: Starting workflow",
-      workflow: workflow_module,
-      input_keys: Map.keys(input)
-    )
+    # Validate inputs
+    cond do
+      not is_atom(workflow_module) ->
+        Logger.error("Singularity.Workflow.Executor: Invalid workflow_module type",
+          workflow: inspect(workflow_module),
+          expected: "atom (module)"
+        )
+        {:error, {:invalid_workflow_module, workflow_module}}
 
-    with {:ok, definition} <- WorkflowDefinition.parse(workflow_module),
-         {:ok, run_id} <- RunInitializer.initialize(definition, input, repo),
-         result <- TaskExecutor.execute_run(run_id, definition, repo, opts) do
-      case result do
-        {:ok, output} ->
-          Logger.info("Singularity.Workflow.Executor: Workflow completed",
-            workflow: workflow_module,
-            run_id: run_id
-          )
+      not is_map(input) ->
+        Logger.error("Singularity.Workflow.Executor: Invalid input type",
+          input: inspect(input),
+          expected: "map"
+        )
+        {:error, {:invalid_input, input}}
 
-          {:ok, output}
+      true ->
+        start_time = System.monotonic_time()
+        input_size = :erlang.term_to_binary(input) |> byte_size()
 
-        {:error, reason} ->
-          Logger.error("Singularity.Workflow.Executor: Workflow failed",
-            workflow: workflow_module,
-            run_id: run_id,
-            reason: inspect(reason)
-          )
-
-          {:error, reason}
-      end
-    else
-      {:error, reason} ->
-        Logger.error("Singularity.Workflow.Executor: Workflow initialization failed",
+        Logger.info("Singularity.Workflow.Executor: Starting workflow",
           workflow: workflow_module,
-          reason: inspect(reason)
+          input_keys: Map.keys(input),
+          input_size_bytes: input_size
         )
 
-        {:error, reason}
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :execute, :start],
+          %{system_time: System.system_time()},
+          %{
+            workflow_module: workflow_module,
+            input_size_bytes: input_size,
+            input_keys: Map.keys(input)
+          }
+        )
+
+        # Validate input size
+        max_input_size = Keyword.get(opts, :max_input_size_bytes, @max_input_size_bytes)
+
+        if input_size > max_input_size do
+          Logger.error("Singularity.Workflow.Executor: Input size exceeds limit",
+            workflow: workflow_module,
+            input_size_bytes: input_size,
+            max_size_bytes: max_input_size
+          )
+
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :execute, :stop],
+            %{duration: System.monotonic_time() - start_time},
+            %{
+              workflow_module: workflow_module,
+              status: :error,
+              error: :input_too_large
+            }
+          )
+
+          {:error, {:input_too_large, input_size, max_input_size}}
+        else
+          try do
+            with {:ok, definition} <- WorkflowDefinition.parse(workflow_module),
+                 {:ok, run_id} <- RunInitializer.initialize(definition, input, repo),
+                 result <- TaskExecutor.execute_run(run_id, definition, repo, opts) do
+              duration = System.monotonic_time() - start_time
+
+              case result do
+                {:ok, output} when is_map(output) ->
+                  # Validate output size
+                  output_size = :erlang.term_to_binary(output) |> byte_size()
+                  max_output_size = Keyword.get(opts, :max_output_size_bytes, @max_output_size_bytes)
+
+                  if output_size > max_output_size do
+                    Logger.warning("Singularity.Workflow.Executor: Output size exceeds limit",
+                      workflow: workflow_module,
+                      run_id: run_id,
+                      output_size_bytes: output_size,
+                      max_size_bytes: max_output_size
+                    )
+                  end
+
+                  Logger.info("Singularity.Workflow.Executor: Workflow completed",
+                    workflow: workflow_module,
+                    run_id: run_id,
+                    output_size_bytes: output_size
+                  )
+
+                  :telemetry.execute(
+                    [:singularity_workflow, :executor, :execute, :stop],
+                    %{duration: duration},
+                    %{
+                      workflow_module: workflow_module,
+                      run_id: run_id,
+                      status: :ok,
+                      output_size_bytes: output_size
+                    }
+                  )
+
+                  {:ok, output}
+
+                {:ok, :in_progress} ->
+                  Logger.warning("Singularity.Workflow.Executor: Workflow still in progress",
+                    workflow: workflow_module,
+                    run_id: run_id
+                  )
+
+                  :telemetry.execute(
+                    [:singularity_workflow, :executor, :execute, :stop],
+                    %{duration: duration},
+                    %{
+                      workflow_module: workflow_module,
+                      run_id: run_id,
+                      status: :timeout
+                    }
+                  )
+
+                  {:error, :workflow_timeout}
+
+                {:error, reason} ->
+                  Logger.error("Singularity.Workflow.Executor: Workflow failed",
+                    workflow: workflow_module,
+                    run_id: run_id,
+                    reason: inspect(reason)
+                  )
+
+                  :telemetry.execute(
+                    [:singularity_workflow, :executor, :execute, :stop],
+                    %{duration: duration},
+                    %{
+                      workflow_module: workflow_module,
+                      run_id: run_id,
+                      status: :error,
+                      error: reason
+                    }
+                  )
+
+                  {:error, reason}
+              end
+            else
+              {:error, reason} ->
+                duration = System.monotonic_time() - start_time
+
+                Logger.error("Singularity.Workflow.Executor: Workflow initialization failed",
+                  workflow: workflow_module,
+                  reason: inspect(reason)
+                )
+
+                :telemetry.execute(
+                  [:singularity_workflow, :executor, :execute, :stop],
+                  %{duration: duration},
+                  %{
+                    workflow_module: workflow_module,
+                    status: :error,
+                    error: reason
+                  }
+                )
+
+                {:error, reason}
+            end
+          rescue
+            error ->
+              duration = System.monotonic_time() - start_time
+
+              Logger.error("Singularity.Workflow.Executor: Unexpected exception",
+                workflow: workflow_module,
+                error: Exception.format(:error, error, __STACKTRACE__)
+              )
+
+              :telemetry.execute(
+                [:singularity_workflow, :executor, :execute, :exception],
+                %{duration: duration},
+                %{
+                  workflow_module: workflow_module,
+                  kind: :error,
+                  error: Exception.message(error)
+                }
+              )
+
+              {:error, {:unexpected_error, Exception.message(error)}}
+          catch
+            kind, reason ->
+              duration = System.monotonic_time() - start_time
+
+              Logger.error("Singularity.Workflow.Executor: Unexpected throw/exit",
+                workflow: workflow_module,
+                kind: kind,
+                reason: inspect(reason)
+              )
+
+              :telemetry.execute(
+                [:singularity_workflow, :executor, :execute, :exception],
+                %{duration: duration},
+                %{
+                  workflow_module: workflow_module,
+                  kind: kind,
+                  error: inspect(reason)
+                }
+              )
+
+              {:error, {:unexpected_exception, kind, reason}}
+          end
+        end
     end
   end
 
@@ -386,48 +619,111 @@ defmodule Singularity.Workflow.Executor do
     reason = Keyword.get(opts, :reason, "User requested cancellation")
     force = Keyword.get(opts, :force, false)
 
-    import Ecto.Query
+    # Validate run_id
+    if is_binary(run_id) or is_struct(run_id, Ecto.UUID) do
+      import Ecto.Query
 
-    repo.transaction(fn ->
-      case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
-        nil ->
-          repo.rollback({:error, :not_found})
+      try do
+        _result = repo.transaction(fn ->
+          case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
+            nil ->
+              repo.rollback({:error, :not_found})
 
-        run ->
-          unless force do
-            if run.status in ["completed", "failed"] do
-              repo.rollback({:error, {:already_finished, run.status}})
-            end
+            run ->
+              unless force do
+                if run.status in ["completed", "failed"] do
+                  repo.rollback({:error, {:already_finished, run.status}})
+                end
+              end
+
+              # Mark workflow as failed
+              run
+              |> Singularity.Workflow.WorkflowRun.mark_failed(reason)
+              |> repo.update!()
+
+              # Cancel pending tasks
+              from(t in Singularity.Workflow.StepTask,
+                where: t.run_id == ^run_id,
+                where: t.status in ["queued", "started"]
+              )
+              |> repo.update_all(set: [status: "cancelled", updated_at: DateTime.utc_now()])
+
+              # Cancel Oban jobs if using distributed execution (internal detail)
+              if Code.ensure_loaded?(Oban) do
+                cancel_oban_jobs_for_run(run_id, repo)
+              end
+
+              Logger.info("Workflow cancelled",
+                run_id: run_id,
+                reason: reason
+              )
+
+              :ok
           end
+        end)
+        |> case do
+          {:ok, :ok} = ok_result ->
+            :telemetry.execute(
+              [:singularity_workflow, :executor, :cancel, :stop],
+              %{},
+              %{
+                run_id: run_id,
+                reason: reason,
+                force: force,
+                status: :ok
+              }
+            )
+            ok_result
 
-          # Mark workflow as failed
-          run
-          |> Singularity.Workflow.WorkflowRun.mark_failed(reason)
-          |> repo.update!()
+          {:ok, {:error, reason} = error_result} ->
+            :telemetry.execute(
+              [:singularity_workflow, :executor, :cancel, :stop],
+              %{},
+              %{
+                run_id: run_id,
+                reason: reason,
+                force: force,
+                status: :error,
+                error: reason
+              }
+            )
+            error_result
 
-          # Cancel pending tasks
-          from(t in Singularity.Workflow.StepTask,
-            where: t.run_id == ^run_id,
-            where: t.status in ["queued", "started"]
-          )
-          |> repo.update_all(set: [status: "cancelled", updated_at: DateTime.utc_now()])
-
-          # Cancel Oban jobs if using distributed execution (internal detail)
-          if Code.ensure_loaded?(Oban) do
-            cancel_oban_jobs_for_run(run_id, repo)
-          end
-
-          Logger.info("Workflow cancelled",
+          {:error, reason} = error_result ->
+            :telemetry.execute(
+              [:singularity_workflow, :executor, :cancel, :stop],
+              %{},
+              %{
+                run_id: run_id,
+                reason: reason,
+                force: force,
+                status: :error,
+                error: reason
+              }
+            )
+            error_result
+        end
+      rescue
+        error ->
+          Logger.error("Executor: Unexpected exception during cancellation",
             run_id: run_id,
-            reason: reason
+            error: Exception.format(:error, error, __STACKTRACE__)
           )
-
-          :ok
+          {:error, {:unexpected_error, Exception.message(error)}}
+      catch
+        kind, reason ->
+          Logger.error("Executor: Unexpected throw/exit during cancellation",
+            run_id: run_id,
+            kind: kind,
+            reason: inspect(reason)
+          )
+          {:error, {:unexpected_exception, kind, reason}}
       end
-    end)
-    |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
+    else
+      Logger.error("Executor: Invalid run_id type for cancellation",
+        run_id: inspect(run_id)
+      )
+      {:error, {:invalid_run_id, run_id}}
     end
   end
 
@@ -545,7 +841,16 @@ defmodule Singularity.Workflow.Executor do
   def retry_failed_workflow(run_id, repo, opts \\ []) do
     reset_all = Keyword.get(opts, :reset_all, false)
 
-    case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
+    :telemetry.execute(
+      [:singularity_workflow, :executor, :retry, :start],
+      %{system_time: System.system_time()},
+      %{
+        run_id: run_id,
+        reset_all: reset_all
+      }
+    )
+
+    result = case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
       nil ->
         {:error, :not_found}
 
@@ -581,6 +886,19 @@ defmodule Singularity.Workflow.Executor do
           end
         end
     end
+
+    :telemetry.execute(
+      [:singularity_workflow, :executor, :retry, :stop],
+      %{},
+      %{
+        run_id: run_id,
+        reset_all: reset_all,
+        status: if(elem(result, 0) == :ok, do: :ok, else: :error),
+        error: if(elem(result, 0) == :error, do: elem(result, 1), else: nil)
+      }
+    )
+
+    result
   end
 
   @doc """
@@ -612,7 +930,7 @@ defmodule Singularity.Workflow.Executor do
   def pause_workflow_run(run_id, repo) do
     import Ecto.Query
 
-    repo.transaction(fn ->
+    _result = repo.transaction(fn ->
       case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
         nil ->
           repo.rollback({:error, :not_found})
@@ -643,8 +961,40 @@ defmodule Singularity.Workflow.Executor do
       end
     end)
     |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
+      {:ok, :ok} = ok_result ->
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :pause, :stop],
+          %{},
+          %{
+            run_id: run_id,
+            status: :ok
+          }
+        )
+        ok_result
+
+      {:ok, {:error, reason} = error_result} ->
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :pause, :stop],
+          %{},
+          %{
+            run_id: run_id,
+            status: :error,
+            error: reason
+          }
+        )
+        error_result
+
+      {:error, reason} = error_result ->
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :pause, :stop],
+          %{},
+          %{
+            run_id: run_id,
+            status: :error,
+            error: reason
+          }
+        )
+        error_result
     end
   end
 
@@ -675,7 +1025,7 @@ defmodule Singularity.Workflow.Executor do
   def resume_workflow_run(run_id, repo) do
     import Ecto.Query
 
-    repo.transaction(fn ->
+    _result = repo.transaction(fn ->
       case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
         nil ->
           repo.rollback({:error, :not_found})
@@ -705,12 +1055,45 @@ defmodule Singularity.Workflow.Executor do
       end
     end)
     |> case do
-      {:ok, result} -> result
-      {:error, reason} -> {:error, reason}
+      {:ok, :ok} = ok_result ->
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :resume, :stop],
+          %{},
+          %{
+            run_id: run_id,
+            status: :ok
+          }
+        )
+        ok_result
+
+      {:ok, {:error, reason} = error_result} ->
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :resume, :stop],
+          %{},
+          %{
+            run_id: run_id,
+            status: :error,
+            error: reason
+          }
+        )
+        error_result
+
+      {:error, reason} = error_result ->
+        :telemetry.execute(
+          [:singularity_workflow, :executor, :resume, :stop],
+          %{},
+          %{
+            run_id: run_id,
+            status: :error,
+            error: reason
+          }
+        )
+        error_result
     end
   end
 
   # Calculate workflow progress
+  @spec calculate_progress(Ecto.UUID.t(), module()) :: {:ok, map()} | {:error, term()}
   defp calculate_progress(run_id, repo) do
     import Ecto.Query
 
@@ -737,6 +1120,7 @@ defmodule Singularity.Workflow.Executor do
   end
 
   # Cancel Oban jobs for a workflow run (internal - Oban is hidden from users)
+  @spec cancel_oban_jobs_for_run(Ecto.UUID.t(), module()) :: :ok
   defp cancel_oban_jobs_for_run(run_id, repo) do
     import Ecto.Query
 

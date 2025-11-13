@@ -132,6 +132,7 @@ defmodule Singularity.Workflow.FlowOperations do
 
   # Private helper functions
 
+  @spec validate_step_inputs(String.t(), String.t(), atom(), list(String.t())) :: :ok | {:error, term()}
   defp validate_step_inputs(workflow_slug, step_slug, step_type, depends_on) do
     cond do
       not valid_slug?(workflow_slug) ->
@@ -177,6 +178,7 @@ defmodule Singularity.Workflow.FlowOperations do
 
   def valid_slug?(_), do: false
 
+  @spec validate_workflow_exists(String.t()) :: :ok | {:error, term()}
   defp validate_workflow_exists(workflow_slug) do
     case Repo.query("SELECT 1 FROM workflows WHERE workflow_slug = $1::text", [workflow_slug]) do
       {:ok, %{rows: [_ | _]}} -> :ok
@@ -185,6 +187,7 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec validate_step_not_duplicate(String.t(), String.t()) :: :ok | {:error, term()}
   defp validate_step_not_duplicate(workflow_slug, step_slug) do
     case Repo.query(
            "SELECT 1 FROM workflow_steps WHERE workflow_slug = $1::text AND step_slug = $2::text",
@@ -196,6 +199,7 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec get_next_step_index(String.t()) :: {:ok, integer()} | {:error, term()}
   defp get_next_step_index(workflow_slug) do
     case Repo.query(
            "SELECT COALESCE(MAX(step_index) + 1, 0) as next_index FROM workflow_steps WHERE workflow_slug = $1::text",
@@ -209,6 +213,15 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec insert_step(
+          String.t(),
+          String.t(),
+          String.t(),
+          integer(),
+          integer() | nil,
+          integer() | nil,
+          integer() | nil
+        ) :: {:ok, :inserted} | {:error, term()}
   defp insert_step(
          workflow_slug,
          step_slug,
@@ -264,6 +277,7 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec fetch_workflow_defaults(String.t()) :: {:ok, integer(), integer()} | :error
   defp fetch_workflow_defaults(workflow_slug) do
     case Repo.query(
            "SELECT max_attempts, timeout FROM workflows WHERE workflow_slug = $1::text",
@@ -277,6 +291,8 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec insert_dependencies(String.t(), String.t(), [String.t()]) ::
+          {:ok, :no_dependencies | :inserted} | {:error, term()}
   defp insert_dependencies(_workflow_slug, _step_slug, []) do
     {:ok, :no_dependencies}
   end
@@ -329,6 +345,7 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec validate_dependencies_exist(String.t(), [String.t()]) :: :ok | {:error, term()}
   defp validate_dependencies_exist(workflow_slug, depends_on) do
     missing =
       Enum.filter(depends_on, fn dep_slug ->
@@ -349,6 +366,7 @@ defmodule Singularity.Workflow.FlowOperations do
     end
   end
 
+  @spec fetch_step(String.t(), String.t()) :: {:ok, map()} | {:error, term()}
   defp fetch_step(workflow_slug, step_slug) do
     case Repo.query(
            """

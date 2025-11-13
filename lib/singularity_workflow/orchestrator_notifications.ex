@@ -67,6 +67,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
 
   @notifications_env_key :notifications_impl
 
+  @spec notifications_impl() :: module()
   defp notifications_impl do
     Application.get_env(
       :singularity_workflow,
@@ -95,7 +96,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
       Singularity.Workflow.OrchestratorNotifications.broadcast_decomposition(
         "goal-123",
         :started,
-        %{goal: "Build auth system", timestamp: DateTime.utc_now()},
+        %{goal: "Build auth system", occurred_at: DateTime.utc_now()},
         MyApp.Repo
       )
   """
@@ -106,7 +107,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
       goal_id: goal_id,
       event: event,
       data: data,
-      timestamp: DateTime.utc_now(),
+      occurred_at: DateTime.utc_now(),
       event_type: "decomposition"
     }
 
@@ -144,7 +145,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
       task_id: task_id,
       event: event,
       data: data,
-      timestamp: DateTime.utc_now(),
+      occurred_at: DateTime.utc_now(),
       event_type: "task"
     }
 
@@ -173,7 +174,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
       workflow_id: workflow_id,
       event: event,
       data: data,
-      timestamp: DateTime.utc_now(),
+      occurred_at: DateTime.utc_now(),
       event_type: "workflow"
     }
 
@@ -200,7 +201,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
     event_data = %{
       workflow_id: workflow_id,
       metrics: metrics,
-      timestamp: DateTime.utc_now(),
+      occurred_at: DateTime.utc_now(),
       event_type: "performance"
     }
 
@@ -258,8 +259,17 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
   """
   @spec stop_listening(pid(), Ecto.Repo.t()) :: :ok | {:error, any()}
   def stop_listening(pid, _repo) do
+    ref = Process.monitor(pid)
     Process.exit(pid, :normal)
-    :ok
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} ->
+        :ok
+    after
+      5_000 ->
+        Process.demonitor(ref, [:flush])
+        {:error, :timeout}
+    end
   end
 
   @doc """
@@ -284,7 +294,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
 
       base_query =
         from(e in Singularity.Workflow.Orchestrator.Schemas.Event,
-          order_by: [desc: e.timestamp],
+          order_by: [desc: e.occurred_at],
           limit: ^limit,
           select: e
         )
@@ -304,7 +314,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
             id: event.id,
             type: event.event_type,
             data: event.event_data,
-            timestamp: event.timestamp,
+            occurred_at: event.occurred_at,
             execution_id: event.execution_id,
             task_execution_id: event.task_execution_id
           }
@@ -323,6 +333,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
 
   # Private functions
 
+  @spec listen_loop(String.t() | nil, list(atom()), integer(), module()) :: no_return()
   defp listen_loop(workflow_name, event_types, timeout, repo) do
     # Listen for HTDAG events and forward to parent process
     receive do
@@ -344,6 +355,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
     end
   end
 
+  @spec handle_notification(String.t(), String.t(), String.t() | nil, list(atom()), module()) :: :ok
   defp handle_notification(channel, message_id, _workflow_name, event_types, _repo) do
     # Handle incoming notifications
     # Parse channel to determine event type
@@ -378,6 +390,7 @@ defmodule Singularity.Workflow.OrchestratorNotifications do
     end
   end
 
+  @spec send_event(atom(), String.t()) :: :ok
   defp send_event(event_type, message_id) do
     # Send event to parent process with message ID
     send(self(), {:htdag_event, self(), event_type, %{message_id: message_id}})

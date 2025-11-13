@@ -57,6 +57,7 @@ defmodule Singularity.Workflow.TestClock do
 
   The time is stored in an Agent and can be advanced with `advance/1`.
   """
+  @spec now() :: DateTime.t()
   @impl Singularity.Workflow.Clock
   def now do
     ensure_started()
@@ -81,6 +82,7 @@ defmodule Singularity.Workflow.TestClock do
       iex> Singularity.Workflow.TestClock.now()
       ~U[2025-01-01 00:01:00.000000Z]
   """
+  @spec advance(non_neg_integer()) :: :ok
   @impl Singularity.Workflow.Clock
   def advance(milliseconds) when is_integer(milliseconds) and milliseconds >= 0 do
     ensure_started()
@@ -104,6 +106,7 @@ defmodule Singularity.Workflow.TestClock do
         :ok
       end
   """
+  @spec reset() :: :ok | {:error, term()}
   def reset do
     reset(@default_start_time)
   end
@@ -118,6 +121,7 @@ defmodule Singularity.Workflow.TestClock do
       iex> Singularity.Workflow.TestClock.now()
       ~U[2024-06-15 10:30:00.000000Z]
   """
+  @spec reset(DateTime.t()) :: :ok | {:error, term()}
   def reset(%DateTime{} = start_time) do
     case ensure_started() do
       :ok ->
@@ -151,12 +155,14 @@ defmodule Singularity.Workflow.TestClock do
   This is called automatically by other functions, so you typically don't
   need to call it manually.
   """
+  @spec start_link(keyword()) :: {:ok, pid()} | {:error, term()}
   def start_link(opts \\ []) do
     start_time = Keyword.get(opts, :start_time, @default_start_time)
     Agent.start_link(fn -> start_time end, name: __MODULE__)
   end
 
   # Private helper to ensure the Agent is started (lazy initialization)
+  @spec ensure_started() :: :ok | {:error, term()}
   defp ensure_started do
     case Process.whereis(__MODULE__) do
       nil ->

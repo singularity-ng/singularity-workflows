@@ -18,12 +18,12 @@ defmodule Singularity.Workflow.OrchestratorNotificationsTest do
 
   describe "broadcast_decomposition/4" do
     test "broadcasts decomposition events successfully" do
-      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, repo ->
+      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, _repo ->
         assert queue == "htdag:decomposition"
         assert data.goal_id == "goal_123"
         assert data.event == :started
         assert data.event_type == "decomposition"
-        assert is_struct(data.timestamp, DateTime)
+        assert is_struct(data.occurred_at, DateTime)
         {:ok, "message_123"}
       end)
 
@@ -55,7 +55,7 @@ defmodule Singularity.Workflow.OrchestratorNotificationsTest do
 
   describe "broadcast_task/4" do
     test "broadcasts task events successfully" do
-      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, repo ->
+      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, _repo ->
         assert queue == "htdag:tasks"
         assert data.task_id == "task_456"
         assert data.event == :completed
@@ -77,7 +77,7 @@ defmodule Singularity.Workflow.OrchestratorNotificationsTest do
 
   describe "broadcast_workflow/4" do
     test "broadcasts workflow events successfully" do
-      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, repo ->
+      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, _repo ->
         assert queue == "htdag:workflows"
         assert data.workflow_id == "workflow_789"
         assert data.event == :started
@@ -99,7 +99,7 @@ defmodule Singularity.Workflow.OrchestratorNotificationsTest do
 
   describe "broadcast_performance/3" do
     test "broadcasts performance metrics successfully" do
-      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, repo ->
+      Mox.stub(Singularity.Workflow.Notifications.Mock, :send_with_notify, fn queue, data, _repo ->
         # Focused assertions on critical fields
         assert queue == "htdag:performance"
         assert data.workflow_id == "workflow_789"

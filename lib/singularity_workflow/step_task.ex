@@ -234,6 +234,7 @@ defmodule Singularity.Workflow.StepTask do
   end
 
   # Private: Automatically compute and set idempotency_key if not provided
+  @spec put_idempotency_key(Ecto.Changeset.t()) :: Ecto.Changeset.t()
   defp put_idempotency_key(changeset) do
     case get_field(changeset, :idempotency_key) do
       nil ->

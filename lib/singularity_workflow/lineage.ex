@@ -236,6 +236,7 @@ defmodule Singularity.Workflow.Lineage do
 
   # Private functions
 
+  @spec build_task_graph(list(), list()) :: map()
   defp build_task_graph(steps, dependencies) do
     # Convert StepState + StepDependency into task graph format
     Enum.into(steps, %{}, fn step ->
@@ -259,6 +260,7 @@ defmodule Singularity.Workflow.Lineage do
     end)
   end
 
+  @spec build_trace(list()) :: list()
   defp build_trace(tasks) do
     # Build execution trace from tasks
     Enum.map(tasks, fn task ->
@@ -279,6 +281,7 @@ defmodule Singularity.Workflow.Lineage do
     end)
   end
 
+  @spec calculate_metrics(WorkflowRun.t(), list(), list()) :: map()
   defp calculate_metrics(run, steps, tasks) do
     duration_ms =
       if run.completed_at do
@@ -308,6 +311,7 @@ defmodule Singularity.Workflow.Lineage do
     }
   end
 
+  @spec calculate_task_duration(StepTask.t()) :: integer()
   defp calculate_task_duration(task) do
     if task.updated_at && task.inserted_at do
       DateTime.diff(task.updated_at, task.inserted_at, :millisecond)
@@ -316,10 +320,12 @@ defmodule Singularity.Workflow.Lineage do
     end
   end
 
+  @spec extract_goal(map()) :: term()
   defp extract_goal(input) when is_map(input) do
     # Try common goal field names
     input["goal"] || input[:goal] || input["description"] || input[:description] || input
   end
 
+  @spec extract_goal(term()) :: term()
   defp extract_goal(input), do: input
 end

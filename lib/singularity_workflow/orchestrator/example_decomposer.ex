@@ -30,7 +30,7 @@ defmodule Singularity.Workflow.Orchestrator.ExampleDecomposer do
 
   Decomposes goals into a linear sequence of tasks.
   """
-  @spec simple_decompose(any()) :: {:ok, list()} | {:error, any()}
+  @spec simple_decompose(String.t() | map()) :: {:ok, map()} | {:error, term()}
   def simple_decompose(goal) do
     goal_string = normalize_goal(goal)
 
@@ -118,7 +118,7 @@ defmodule Singularity.Workflow.Orchestrator.ExampleDecomposer do
 
   Decomposes goals into parallel microservice deployment tasks.
   """
-  @spec microservices_decompose(any()) :: {:ok, list()} | {:error, any()}
+  @spec microservices_decompose(String.t() | map()) :: {:ok, map()} | {:error, term()}
   def microservices_decompose(goal) do
     goal_string = normalize_goal(goal)
 
@@ -207,7 +207,7 @@ defmodule Singularity.Workflow.Orchestrator.ExampleDecomposer do
 
   Decomposes goals into data extraction, transformation, and loading tasks.
   """
-  @spec data_pipeline_decompose(any()) :: {:ok, list()} | {:error, any()}
+  @spec data_pipeline_decompose(String.t() | map()) :: {:ok, map()} | {:error, term()}
   def data_pipeline_decompose(goal) do
     goal_string = normalize_goal(goal)
 
@@ -267,7 +267,7 @@ defmodule Singularity.Workflow.Orchestrator.ExampleDecomposer do
 
   Decomposes goals into data preparation, model training, and deployment tasks.
   """
-  @spec ml_pipeline_decompose(any()) :: {:ok, list()} | {:error, any()}
+  @spec ml_pipeline_decompose(String.t() | map()) :: {:ok, map()} | {:error, term()}
   def ml_pipeline_decompose(goal) do
     goal_string = normalize_goal(goal)
 
@@ -332,11 +332,14 @@ defmodule Singularity.Workflow.Orchestrator.ExampleDecomposer do
 
   # Private functions
 
+  @spec normalize_goal(String.t()) :: String.t()
   defp normalize_goal(goal) when is_binary(goal), do: goal
 
+  @spec normalize_goal(map()) :: String.t()
   defp normalize_goal(goal) when is_map(goal) do
     Map.get(goal, :description, Map.get(goal, :goal, "unknown"))
   end
 
+  @spec normalize_goal(term()) :: String.t()
   defp normalize_goal(goal), do: to_string(goal)
 end

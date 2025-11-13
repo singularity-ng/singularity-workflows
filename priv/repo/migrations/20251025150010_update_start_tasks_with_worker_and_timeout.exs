@@ -53,7 +53,8 @@ defmodule Singularity.Workflow.Repo.Migrations.UpdateStartTasksWithWorkerAndTime
         AND message_id = ANY(p_msg_ids)
         AND status = 'queued';
 
-      -- TODO: Set visibility timeouts using set_vt_batch with dynamic timeout from DB
+      -- NOTE: Dynamic visibility timeout setting deferred
+      -- Future enhancement: Use set_vt_batch with per-step timeout values from database
       -- This requires complex PL/pgSQL that aggregates arrays and calls functions
       -- For now, pgmq default timeout values are used
 

@@ -39,6 +39,7 @@ defmodule Singularity.Workflow.Workflow do
   end
 
   @doc false
+  @spec start_link(String.t(), module(), keyword()) :: {:ok, pid()} | {:error, term()}
   def start_link(workflow_name, workflow_module, opts \\ []) do
     RuntimeWorkflow.start_link(workflow_name, workflow_module, opts)
   end
@@ -109,6 +110,7 @@ defmodule Singularity.Workflow.Workflow do
     do_await(run_id, repo, poll_interval, deadline)
   end
 
+  @spec do_await(run_id(), module(), integer(), integer()) :: {:ok, map()} | {:error, term()}
   defp do_await(run_id, repo, poll_interval, deadline) do
     case repo.get(WorkflowRun, run_id) do
       nil ->
@@ -222,6 +224,7 @@ defmodule Singularity.Workflow.Workflow do
   # Internal helpers
   # ---------------------------------------------------------------------------
 
+  @spec start_async_runner(run_id(), WorkflowDefinition.t(), module(), keyword()) :: :ok
   defp start_async_runner(run_id, definition, repo, opts) do
     task_opts = Keyword.take(opts, [:timeout, :poll_interval, :worker_id, :batch_size])
 
@@ -232,6 +235,7 @@ defmodule Singularity.Workflow.Workflow do
     end)
   end
 
+  @spec ensure_task_supervisor_started() :: :ok
   defp ensure_task_supervisor_started do
     case Process.whereis(Singularity.Workflow.TaskSupervisor) do
       nil ->
@@ -248,8 +252,10 @@ defmodule Singularity.Workflow.Workflow do
     end
   end
 
+  @spec resolve_repo(keyword()) :: module() | no_return()
   defp resolve_repo(opts), do: resolve_repo(opts, nil)
 
+  @spec resolve_repo(keyword(), module() | nil) :: module() | no_return()
   defp resolve_repo(opts, workflow_module) do
     cond do
       repo = Keyword.get(opts, :repo) ->
@@ -272,8 +278,10 @@ defmodule Singularity.Workflow.Workflow do
     end
   end
 
+  @spec repo_from_app(nil) :: nil
   defp repo_from_app(nil), do: nil
 
+  @spec repo_from_app(module()) :: module() | nil
   defp repo_from_app(workflow_module) do
     case Application.get_application(workflow_module) do
       nil ->
@@ -286,6 +294,7 @@ defmodule Singularity.Workflow.Workflow do
     end
   end
 
+  @spec format_step(StepState.t()) :: map()
   defp format_step(%StepState{} = step) do
     %{
       name: step.step_slug,
@@ -298,6 +307,7 @@ defmodule Singularity.Workflow.Workflow do
     }
   end
 
+  @spec status_atom(String.t()) :: :completed | :started | :failed | :created
   defp status_atom("completed"), do: :completed
   defp status_atom("started"), do: :started
   defp status_atom("failed"), do: :failed

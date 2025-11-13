@@ -182,6 +182,7 @@ defmodule Singularity.Workflow.DAG.WorkflowDefinition do
 
   # Validate that all dependencies reference existing steps
   @doc false
+  @spec validate_dependencies(map(), map()) :: :ok | {:error, {:invalid_dependencies, list()}}
   def validate_dependencies(steps, dependencies) do
     all_step_names = Map.keys(steps)
 
@@ -260,6 +261,7 @@ defmodule Singularity.Workflow.DAG.WorkflowDefinition do
 
   # Find root steps (steps with no dependencies)
   @doc false
+  @spec find_root_steps(map()) :: {:ok, [atom()]} | {:error, :no_root_steps}
   def find_root_steps(dependencies) do
     root_steps =
       dependencies
@@ -354,6 +356,7 @@ defmodule Singularity.Workflow.DAG.WorkflowDefinition do
   # Convert module name to valid database slug
   # Example: "Elixir.Singularity.Workflow.DAG.TestExecSimpleFlow" -> "singularity_workflow_dag_test_exec_simple_flow"
   # Replaces dots with underscores to comply with is_valid_slug() pattern: ^[a-zA-Z_][a-zA-Z0-9_]*$
+  @spec slugify(String.t()) :: String.t()
   defp slugify(module_name) do
     module_name
     |> String.trim_leading("Elixir.")
@@ -362,6 +365,7 @@ defmodule Singularity.Workflow.DAG.WorkflowDefinition do
   end
 
   # Convert CamelCase to snake_case
+  @spec to_snake_case(String.t()) :: String.t()
   defp to_snake_case(string) do
     string
     |> String.graphemes()

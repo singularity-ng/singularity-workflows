@@ -63,6 +63,7 @@ defmodule Singularity.Workflow.Clock do
   @doc """
   Default implementation: Returns current UTC time.
   """
+  @spec now() :: DateTime.t()
   def now do
     DateTime.utc_now()
   end
@@ -70,5 +71,6 @@ defmodule Singularity.Workflow.Clock do
   @doc """
   Default implementation: No-op (cannot advance real time).
   """
+  @spec advance(non_neg_integer()) :: :ok
   def advance(_milliseconds), do: :ok
 end

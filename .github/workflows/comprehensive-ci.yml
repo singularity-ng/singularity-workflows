@@ -89,6 +89,13 @@ jobs:
       env:
         PGPASSWORD: postgres
 
+    - name: Verify pgmq extension
+      run: |
+        psql -h localhost -p 5432 -U postgres -d singularity_workflow_test -c "CREATE EXTENSION IF NOT EXISTS pgmq;"
+        psql -h localhost -p 5432 -U postgres -d singularity_workflow_test -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'pgmq';"
+      env:
+        PGPASSWORD: postgres
+
     - name: Run migrations
       run: mix ecto.migrate
       env:

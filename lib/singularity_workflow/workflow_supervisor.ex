@@ -21,7 +21,7 @@ defmodule Singularity.Workflow.WorkflowSupervisor do
   Child specification so the supervisor can be started directly inside a
   supervision tree (e.g. `CentralCloud.Application`).
   """
-  @spec child_spec([option()]) :: Supervisor.child_spec()
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
   def child_spec(opts) do
     %{
       id: Keyword.get(opts, :name, __MODULE__),
@@ -35,7 +35,7 @@ defmodule Singularity.Workflow.WorkflowSupervisor do
   Start the workflow supervisor.  If the `:enabled` option is set to `false`
   we return `:ignore`, mirroring how the legacy code toggled feature flags.
   """
-  @spec start_link([option()]) :: Supervisor.on_start()
+  @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts) do
     if Keyword.get(opts, :enabled, true) do
       ensure_registry_started()
@@ -46,6 +46,7 @@ defmodule Singularity.Workflow.WorkflowSupervisor do
   end
 
   @impl Supervisor
+  @spec init(keyword()) :: {:ok, tuple()}
   def init(opts) do
     workflow_module = Keyword.fetch!(opts, :workflow)
     repo = resolve_repo(opts, workflow_module)
@@ -116,12 +117,14 @@ defmodule Singularity.Workflow.WorkflowSupervisor do
     end
   end
 
+  @spec default_workflow_name(module()) :: String.t()
   defp default_workflow_name(workflow_module) do
     workflow_module
     |> Module.split()
     |> Enum.map_join(".", &Macro.underscore/1)
   end
 
+  @spec resolve_repo(keyword(), module()) :: module() | no_return()
   defp resolve_repo(opts, workflow_module) do
     cond do
       repo = Keyword.get(opts, :repo) ->

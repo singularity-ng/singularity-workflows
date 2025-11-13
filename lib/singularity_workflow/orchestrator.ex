@@ -386,6 +386,7 @@ defmodule Singularity.Workflow.Orchestrator do
 
   # Private functions
 
+  @spec build_task_graph(list(), integer()) :: map()
   defp build_task_graph(tasks, max_depth) do
     # Build hierarchical task graph from flat task list
     # Add depth tracking, dependency validation, etc.
@@ -413,6 +414,7 @@ defmodule Singularity.Workflow.Orchestrator do
     }
   end
 
+  @spec calculate_task_depths(list()) :: list()
   defp calculate_task_depths(tasks) do
     task_map = Enum.into(tasks, %{}, &{&1.id, &1})
 
@@ -424,6 +426,7 @@ defmodule Singularity.Workflow.Orchestrator do
     end)
   end
 
+  @spec calculate_depths_recursive(list(), map(), map()) :: map()
   defp calculate_depths_recursive(tasks, task_map, depths) do
     Enum.reduce(tasks, depths, fn task, acc ->
       if Map.has_key?(acc, task.id) do
@@ -435,6 +438,7 @@ defmodule Singularity.Workflow.Orchestrator do
     end)
   end
 
+  @spec calculate_task_depth(map(), map(), map()) :: integer()
   defp calculate_task_depth(task, task_map, depths) do
     if task.depends_on == [] do
       0
@@ -458,6 +462,7 @@ defmodule Singularity.Workflow.Orchestrator do
     end
   end
 
+  @spec convert_tasks_to_steps(list(), map(), integer()) :: map()
   defp convert_tasks_to_steps(tasks, step_functions, retry_attempts) do
     # Convert HTDAG tasks to singularity_workflow workflow steps
     tasks
@@ -510,6 +515,7 @@ defmodule Singularity.Workflow.Orchestrator do
     end
   end
 
+  @spec generate_goal_id(term()) :: String.t()
   defp generate_goal_id(goal) do
     case goal do
       goal when is_binary(goal) ->

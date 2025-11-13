@@ -258,10 +258,12 @@ defmodule Singularity.Workflow.Orchestrator.Config do
 
   # Private functions
 
+  @spec get_htdag_config() :: map()
   defp get_htdag_config do
     Application.get_env(:singularity_workflow, :htdag, default_config())
   end
 
+  @spec default_config() :: map()
   defp default_config do
     %{
       # Global settings
@@ -394,6 +396,7 @@ defmodule Singularity.Workflow.Orchestrator.Config do
     }
   end
 
+  @spec validate_required_fields(map()) :: :ok | {:error, term()}
   defp validate_required_fields(config) do
     required_fields = [:max_depth, :timeout, :max_parallel, :retry_attempts]
 
@@ -409,6 +412,7 @@ defmodule Singularity.Workflow.Orchestrator.Config do
     end
   end
 
+  @spec validate_value_ranges(map()) :: :ok | {:error, term()}
   defp validate_value_ranges(config) do
     validations = [
       {config.max_depth, &is_integer/1, "max_depth must be an integer"},
@@ -430,6 +434,7 @@ defmodule Singularity.Workflow.Orchestrator.Config do
     end)
   end
 
+  @spec validate_dependencies(map()) :: :ok | {:error, term()}
   defp validate_dependencies(config) do
     # Validate that optimization settings are consistent
     if config.optimization.enabled and not config.features.optimization do

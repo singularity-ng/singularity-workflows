@@ -33,7 +33,8 @@ defmodule Singularity.Workflow.Repo.Migrations.CreateMaybeCompleteRunFunction do
             SELECT DISTINCT
               leaf_state.step_slug,
               -- For now, just get the first task's output
-              -- TODO: Aggregate for map steps once we support them
+              -- NOTE: Map step aggregation deferred
+              -- Future enhancement: Aggregate outputs from map steps (multiple tasks per step)
               (SELECT t.output
                FROM workflow_step_tasks t
                WHERE t.run_id = leaf_state.run_id

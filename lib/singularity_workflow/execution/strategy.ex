@@ -38,7 +38,7 @@ defmodule Singularity.Workflow.Execution.Strategy do
   @doc """
   Execute a step function using the specified execution strategy.
   """
-  @spec execute(function(), any(), execution_config(), map()) :: {:ok, any()} | {:error, term()}
+  @spec execute(function(), map(), ExecutionConfig.t(), map()) :: {:ok, map()} | {:error, term()}
   def execute(step_fn, input, config, context \\ %{}) do
     case config.execution do
       :local -> DirectBackend.execute(step_fn, input, config, context)

@@ -33,6 +33,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
   import Ecto.Query
 
   alias Singularity.Workflow.DAG.WorkflowDefinition
+  alias Singularity.Workflow.FlowTracer
   alias Singularity.Workflow.StepDependency
   alias Singularity.Workflow.StepState
   alias Singularity.Workflow.WorkflowRun
@@ -50,6 +51,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
            :ok <- create_workflow_steps(definition, repo),
            :ok <- create_step_states(definition, run.id, repo),
            :ok <- create_dependencies(definition, run.id, repo),
+           :ok <- trace_workflow_structure(definition, run.id),
            :ok <- ensure_workflow_queue(definition.slug, repo),
            :ok <- start_ready_steps(run.id, repo) do
         run.id
@@ -61,6 +63,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
   end
 
   # Step 1: Create workflow_runs record
+  @spec create_run(WorkflowDefinition.t(), map(), module()) :: {:ok, WorkflowRun.t()} | {:error, term()}
   defp create_run(definition, input, repo) do
     run_id = Ecto.UUID.generate()
     step_count = map_size(definition.steps)
@@ -80,6 +83,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
 
   # Step 1.5: Create workflow_steps records for code-based workflows
   # (FlowBuilder workflows already have these records)
+  @spec create_workflow_steps(WorkflowDefinition.t(), module()) :: :ok | {:error, term()}
   defp create_workflow_steps(definition, repo) do
     # Check if workflow_steps already exist for this workflow
     existing_count =
@@ -112,6 +116,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
     end
   end
 
+  @spec create_workflow_record_if_needed(WorkflowDefinition.t(), module(), integer()) :: :ok | {:error, term()}
   defp create_workflow_record_if_needed(definition, repo, 0) do
     # Create workflow record for code-based workflow
     clock = Application.get_env(:singularity_workflow, :clock, Singularity.Workflow.Clock)
@@ -129,8 +134,10 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
     end
   end
 
+  @spec create_workflow_record_if_needed(WorkflowDefinition.t(), module(), integer()) :: :ok
   defp create_workflow_record_if_needed(_definition, _repo, _), do: :ok
 
+  @spec create_workflow_step_records(WorkflowDefinition.t(), module()) :: :ok | {:error, term()}
   defp create_workflow_step_records(definition, repo) do
     clock = Application.get_env(:singularity_workflow, :clock, Singularity.Workflow.Clock)
 
@@ -157,6 +164,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
   end
 
   # Step 2: Create workflow_step_states records
+  @spec create_step_states(WorkflowDefinition.t(), Ecto.UUID.t(), module()) :: :ok | {:error, term()}
   defp create_step_states(definition, run_id, repo) do
     clock = Application.get_env(:singularity_workflow, :clock, Singularity.Workflow.Clock)
 
@@ -187,6 +195,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
   end
 
   # Step 3: Create workflow_step_dependencies records
+  @spec create_dependencies(WorkflowDefinition.t(), Ecto.UUID.t(), module()) :: :ok
   defp create_dependencies(definition, run_id, repo) do
     clock = Application.get_env(:singularity_workflow, :clock, Singularity.Workflow.Clock)
 
@@ -210,7 +219,28 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
     end
   end
 
+  # Trace workflow structure for visualization
+  @spec trace_workflow_structure(WorkflowDefinition.t(), Ecto.UUID.t()) :: :ok
+  defp trace_workflow_structure(definition, run_id) do
+    steps =
+      Enum.map(definition.steps, fn {step_name, _step_fn} ->
+        deps = Map.get(definition.dependencies, step_name, [])
+        %{step_slug: to_string(step_name), depends_on: Enum.map(deps, &to_string/1)}
+      end)
+
+    dependencies =
+      Enum.flat_map(definition.dependencies, fn {step_name, deps} ->
+        Enum.map(deps, fn dep_name ->
+          {to_string(step_name), to_string(dep_name)}
+        end)
+      end)
+
+    FlowTracer.trace_workflow_structure(run_id, definition.slug, steps, dependencies)
+    :ok
+  end
+
   # Step 4: Ensure pgmq queue exists for this workflow
+  @spec ensure_workflow_queue(String.t(), module()) :: :ok | {:error, term()}
   defp ensure_workflow_queue(workflow_slug, repo) do
     result =
       repo.query(
@@ -235,6 +265,7 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
 
   # Step 5: Call start_ready_steps() to mark root steps as 'started' and send to pgmq
   # NOTE: start_ready_steps now creates task records AND sends messages to pgmq
+  @spec start_ready_steps(Ecto.UUID.t(), module()) :: :ok | {:error, term()}
   defp start_ready_steps(run_id, repo) do
     # Convert string UUID to binary format for PostgreSQL
     {:ok, binary_run_id} = Ecto.UUID.dump(run_id)

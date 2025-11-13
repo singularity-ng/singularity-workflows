@@ -14,9 +14,12 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     @type t :: %__MODULE__{
             id: binary(),
+            name: String.t(),
             goal: String.t(),
-            tasks: map(),
+            decomposer_module: String.t(),
+            task_graph: map(),
             metadata: map(),
+            max_depth: integer(),
             status: String.t(),
             inserted_at: DateTime.t(),
             updated_at: DateTime.t()
@@ -56,7 +59,13 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
             id: binary(),
             name: String.t(),
             description: String.t() | nil,
+            workflow_definition: map(),
+            step_functions: map(),
             config: map(),
+            metadata: map(),
+            max_parallel: non_neg_integer(),
+            retry_attempts: non_neg_integer(),
+            status: String.t(),
             inserted_at: DateTime.t(),
             updated_at: DateTime.t()
           }
@@ -212,8 +221,11 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     @type t :: %__MODULE__{
             id: binary(),
-            type: String.t(),
-            data: map() | nil,
+            event_type: String.t(),
+            event_data: map() | nil,
+            occurred_at: DateTime.t() | nil,
+            execution_id: binary() | nil,
+            task_execution_id: binary() | nil,
             inserted_at: DateTime.t(),
             updated_at: DateTime.t()
           }
@@ -236,7 +248,7 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     schema "orchestrator_events" do
       field(:event_type, :string)
       field(:event_data, :map, default: %{})
-      field(:timestamp, :utc_datetime)
+      field(:occurred_at, :utc_datetime)
       field(:execution_id, :binary_id)
       field(:task_execution_id, :binary_id)
       timestamps()
@@ -244,7 +256,7 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     def event_changeset(event, attrs) do
       event
-      |> cast(attrs, [:event_type, :event_data, :timestamp, :execution_id, :task_execution_id])
+      |> cast(attrs, [:event_type, :event_data, :occurred_at, :execution_id, :task_execution_id])
       |> validate_required([:event_type, :event_data])
       |> validate_change(:event_type, fn :event_type, value ->
         if valid_event_type?(value) do
@@ -268,9 +280,13 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     @type t :: %__MODULE__{
             id: binary(),
-            execution_id: binary(),
-            metric_name: String.t(),
-            value: float(),
+            workflow_id: binary(),
+            task_id: String.t(),
+            metric_type: String.t(),
+            metric_value: float(),
+            metric_unit: String.t() | nil,
+            context: map(),
+            recorded_at: DateTime.t() | nil,
             inserted_at: DateTime.t(),
             updated_at: DateTime.t()
           }
@@ -279,6 +295,7 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     @metric_types ["execution_time", "success_rate", "error_rate", "throughput", "latency"]
 
     schema "orchestrator_performance_metrics" do
+      field(:workflow_id, :binary_id)
       field(:task_id, :string)
       field(:metric_type, :string)
       field(:metric_value, :float)
@@ -290,8 +307,8 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     def performance_metric_changeset(metric, attrs) do
       metric
-      |> cast(attrs, [:task_id, :metric_type, :metric_value, :metric_unit, :context, :recorded_at])
-      |> validate_required([:task_id, :metric_type, :metric_value])
+      |> cast(attrs, [:workflow_id, :task_id, :metric_type, :metric_value, :metric_unit, :context, :recorded_at])
+      |> validate_required([:workflow_id, :metric_type, :metric_value])
       |> validate_number(:metric_value, greater_than_or_equal_to: 0)
       |> validate_inclusion(:metric_type, @metric_types)
     end
@@ -306,9 +323,12 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     @type t :: %__MODULE__{
             id: binary(),
+            workflow_name: String.t(),
             pattern_type: String.t(),
             pattern_data: map(),
-            confidence: float(),
+            confidence_score: float(),
+            usage_count: integer(),
+            last_used_at: DateTime.t() | nil,
             inserted_at: DateTime.t(),
             updated_at: DateTime.t()
           }
@@ -322,12 +342,13 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
       field(:pattern_data, :map)
       field(:confidence_score, :float, default: 0.0)
       field(:usage_count, :integer, default: 0)
+      field(:last_used_at, :utc_datetime)
       timestamps()
     end
 
     def learning_pattern_changeset(pattern, attrs) do
       pattern
-      |> cast(attrs, [:workflow_name, :pattern_type, :pattern_data, :confidence_score, :usage_count])
+      |> cast(attrs, [:workflow_name, :pattern_type, :pattern_data, :confidence_score, :usage_count, :last_used_at])
       |> validate_required([:workflow_name, :pattern_type, :pattern_data])
       |> validate_number(:confidence_score, greater_than_or_equal_to: 0, less_than_or_equal_to: 1)
       |> validate_number(:usage_count, greater_than_or_equal_to: 0)

@@ -55,7 +55,8 @@ defmodule Singularity.Workflow.Repo.Migrations.FixStartTasksAmbiguousColumn do
         AND wst.message_id = ANY(p_msg_ids)
         AND wst.status = 'queued';
 
-      -- TODO: Set visibility timeouts using set_vt_batch
+      -- NOTE: Visibility timeout setting deferred
+      -- Future enhancement: Use set_vt_batch for batch visibility timeout management
       -- This requires a different PL/pgSQL pattern. For now, timeout setting
       -- is handled by pgmq's default values.
 

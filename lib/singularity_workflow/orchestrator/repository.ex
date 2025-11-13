@@ -123,7 +123,7 @@ defmodule Singularity.Workflow.Orchestrator.Repository do
         where: like(w.name, ^"%#{name_pattern}%"),
         limit: ^limit,
         offset: ^offset,
-        order_by: [desc: w.created_at]
+        order_by: [desc: w.inserted_at]
       )
 
     case repo.all(query) do
@@ -316,7 +316,7 @@ defmodule Singularity.Workflow.Orchestrator.Repository do
       from(e in Schemas.Event,
         where: e.execution_id == ^execution_id,
         limit: ^limit,
-        order_by: [desc: e.timestamp]
+        order_by: [desc: e.occurred_at]
       )
 
     query =
@@ -362,7 +362,7 @@ defmodule Singularity.Workflow.Orchestrator.Repository do
   - `repo` - Ecto repository
   - `opts` - Query options
     - `:metric_type` - Filter by metric type
-    - `:since` - Filter by timestamp
+    - `:since` - Filter by recorded_at timestamp
     - `:limit` - Maximum number of metrics
 
   ## Returns
@@ -381,7 +381,7 @@ defmodule Singularity.Workflow.Orchestrator.Repository do
       from(m in Schemas.PerformanceMetric,
         where: m.workflow_id == ^workflow_id,
         limit: ^limit,
-        order_by: [desc: m.timestamp]
+        order_by: [desc: m.recorded_at]
       )
 
     query =
@@ -393,7 +393,7 @@ defmodule Singularity.Workflow.Orchestrator.Repository do
 
     query =
       if since do
-        from(m in query, where: m.timestamp >= ^since)
+        from(m in query, where: m.recorded_at >= ^since)
       else
         query
       end
@@ -526,22 +526,28 @@ defmodule Singularity.Workflow.Orchestrator.Repository do
 
   # Private functions
 
+  @spec maybe_filter_by_workflow(Ecto.Query.t(), nil) :: Ecto.Query.t()
   defp maybe_filter_by_workflow(query, nil), do: query
 
+  @spec maybe_filter_by_workflow(Ecto.Query.t(), String.t()) :: Ecto.Query.t()
   defp maybe_filter_by_workflow(query, workflow_id) do
     from(e in query, where: e.workflow_id == ^workflow_id)
   end
 
+  @spec maybe_filter_by_date_range(Ecto.Query.t(), nil, nil) :: Ecto.Query.t()
   defp maybe_filter_by_date_range(query, nil, nil), do: query
 
+  @spec maybe_filter_by_date_range(Ecto.Query.t(), DateTime.t(), nil) :: Ecto.Query.t()
   defp maybe_filter_by_date_range(query, since, nil) do
     from(e in query, where: e.started_at >= ^since)
   end
 
+  @spec maybe_filter_by_date_range(Ecto.Query.t(), nil, DateTime.t()) :: Ecto.Query.t()
   defp maybe_filter_by_date_range(query, nil, until) do
     from(e in query, where: e.started_at <= ^until)
   end
 
+  @spec maybe_filter_by_date_range(Ecto.Query.t(), DateTime.t(), DateTime.t()) :: Ecto.Query.t()
   defp maybe_filter_by_date_range(query, since, until) do
     from(e in query, where: e.started_at >= ^since and e.started_at <= ^until)
   end

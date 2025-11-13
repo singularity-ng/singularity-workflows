@@ -76,6 +76,7 @@ defmodule Singularity.Workflow.DAG.DynamicWorkflowLoader do
   end
 
   # Fetch workflow record from DB
+  @spec fetch_workflow(String.t(), module()) :: {:ok, map()} | {:error, term()}
   defp fetch_workflow(workflow_slug, repo) do
     case repo.query("SELECT * FROM workflows WHERE workflow_slug = $1::text", [workflow_slug]) do
       {:ok, %{columns: columns, rows: [row]}} ->
@@ -91,6 +92,7 @@ defmodule Singularity.Workflow.DAG.DynamicWorkflowLoader do
   end
 
   # Fetch all steps for workflow
+  @spec fetch_steps(String.t(), module()) :: {:ok, list()} | {:error, term()}
   defp fetch_steps(workflow_slug, repo) do
     case repo.query(
            """
@@ -110,6 +112,7 @@ defmodule Singularity.Workflow.DAG.DynamicWorkflowLoader do
   end
 
   # Fetch all dependencies for workflow
+  @spec fetch_dependencies(String.t(), module()) :: {:ok, list()} | {:error, term()}
   defp fetch_dependencies(workflow_slug, repo) do
     case repo.query(
            """
@@ -134,6 +137,7 @@ defmodule Singularity.Workflow.DAG.DynamicWorkflowLoader do
   end
 
   # Build WorkflowDefinition struct from DB data
+  @spec build_definition(String.t(), map(), list(), list(), map()) :: {:ok, WorkflowDefinition.t()} | {:error, term()}
   defp build_definition(workflow_slug, _workflow_data, steps_data, deps_data, step_functions) do
     # Convert steps to WorkflowDefinition format
     steps_list =
