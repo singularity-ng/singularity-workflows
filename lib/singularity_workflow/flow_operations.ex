@@ -132,7 +132,8 @@ defmodule Singularity.Workflow.FlowOperations do
 
   # Private helper functions
 
-  @spec validate_step_inputs(String.t(), String.t(), atom(), list(String.t())) :: :ok | {:error, term()}
+  @spec validate_step_inputs(String.t(), String.t(), atom(), list(String.t())) ::
+          :ok | {:error, term()}
   defp validate_step_inputs(workflow_slug, step_slug, step_type, depends_on) do
     cond do
       not valid_slug?(workflow_slug) ->

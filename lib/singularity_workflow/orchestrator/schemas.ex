@@ -268,7 +268,9 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
     end
 
     defp valid_event_type?(value) when value in @allowed_event_types, do: true
-    defp valid_event_type?(value), do: String.match?(value, ~r/^[a-z_]+:(started|completed|failed)$/)
+
+    defp valid_event_type?(value),
+      do: String.match?(value, ~r/^[a-z_]+:(started|completed|failed)$/)
   end
 
   defmodule PerformanceMetric do
@@ -307,7 +309,15 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     def performance_metric_changeset(metric, attrs) do
       metric
-      |> cast(attrs, [:workflow_id, :task_id, :metric_type, :metric_value, :metric_unit, :context, :recorded_at])
+      |> cast(attrs, [
+        :workflow_id,
+        :task_id,
+        :metric_type,
+        :metric_value,
+        :metric_unit,
+        :context,
+        :recorded_at
+      ])
       |> validate_required([:workflow_id, :metric_type, :metric_value])
       |> validate_number(:metric_value, greater_than_or_equal_to: 0)
       |> validate_inclusion(:metric_type, @metric_types)
@@ -348,7 +358,14 @@ defmodule Singularity.Workflow.Orchestrator.Schemas do
 
     def learning_pattern_changeset(pattern, attrs) do
       pattern
-      |> cast(attrs, [:workflow_name, :pattern_type, :pattern_data, :confidence_score, :usage_count, :last_used_at])
+      |> cast(attrs, [
+        :workflow_name,
+        :pattern_type,
+        :pattern_data,
+        :confidence_score,
+        :usage_count,
+        :last_used_at
+      ])
       |> validate_required([:workflow_name, :pattern_type, :pattern_data])
       |> validate_number(:confidence_score, greater_than_or_equal_to: 0, less_than_or_equal_to: 1)
       |> validate_number(:usage_count, greater_than_or_equal_to: 0)

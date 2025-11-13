@@ -255,6 +255,7 @@ defmodule Singularity.Workflow.Notifications do
           end
 
         ensure_reply_queue(expect_reply?, reply_queue, repo)
+
         retry_send(
           queue_name,
           enriched_message,
@@ -270,7 +271,9 @@ defmodule Singularity.Workflow.Notifications do
   end
 
   @spec queue_name_too_long?(String.t()) :: boolean()
-  defp queue_name_too_long?(queue_name) when byte_size(queue_name) > @max_queue_name_length, do: true
+  defp queue_name_too_long?(queue_name) when byte_size(queue_name) > @max_queue_name_length,
+    do: true
+
   defp queue_name_too_long?(_), do: false
 
   @spec queue_name_empty?(String.t()) :: boolean()
@@ -304,6 +307,7 @@ defmodule Singularity.Workflow.Notifications do
       timeout_ms: timeout_ms,
       valid_range: "0-#{@max_timeout_ms}ms"
     )
+
     {:error, {:invalid_timeout, timeout_ms}}
   end
 
@@ -346,7 +350,9 @@ defmodule Singularity.Workflow.Notifications do
   end
 
   @spec channel_too_long_for_notify?(String.t()) :: boolean()
-  defp channel_too_long_for_notify?(channel) when byte_size(channel) > @max_queue_name_length, do: true
+  defp channel_too_long_for_notify?(channel) when byte_size(channel) > @max_queue_name_length,
+    do: true
+
   defp channel_too_long_for_notify?(_), do: false
 
   @spec log_channel_too_long_error(String.t(), String.t()) :: :ok
@@ -370,7 +376,17 @@ defmodule Singularity.Workflow.Notifications do
           integer(),
           integer()
         ) :: :ok | {:ok, map()} | {:error, any()}
-  defp retry_send(queue_name, message, repo, reply_queue, expect_reply?, timeout_ms, poll_interval, 0, start_time) do
+  defp retry_send(
+         queue_name,
+         message,
+         repo,
+         reply_queue,
+         expect_reply?,
+         timeout_ms,
+         poll_interval,
+         0,
+         start_time
+       ) do
     # No retries left, attempt final send
     with {:ok, message_id} <- send_pgmq_message(queue_name, message, repo),
          :ok <- trigger_notify(queue_name, message_id, repo),
@@ -400,7 +416,17 @@ defmodule Singularity.Workflow.Notifications do
     end
   end
 
-  defp retry_send(queue_name, message, repo, reply_queue, expect_reply?, timeout_ms, poll_interval, retries_left, start_time) do
+  defp retry_send(
+         queue_name,
+         message,
+         repo,
+         reply_queue,
+         expect_reply?,
+         timeout_ms,
+         poll_interval,
+         retries_left,
+         start_time
+       ) do
     with {:ok, message_id} <- send_pgmq_message(queue_name, message, repo),
          :ok <- trigger_notify(queue_name, message_id, repo),
          result <- maybe_wait_for_reply(expect_reply?, reply_queue, repo, timeout_ms, poll_interval) do
@@ -825,10 +851,12 @@ defmodule Singularity.Workflow.Notifications do
       error: inspect(reason),
       payload: inspect(message)
     )
+
     {:error, reason}
   end
 
-  @spec do_send(String.t(), String.t(), Ecto.Repo.t(), integer()) :: {:ok, integer()} | {:error, term()}
+  @spec do_send(String.t(), String.t(), Ecto.Repo.t(), integer()) ::
+          {:ok, integer()} | {:error, term()}
   defp do_send(queue_name, json_message, repo, attempts \\ 0)
 
   defp do_send(queue_name, json_message, repo, attempts) when attempts < 10 do
@@ -854,11 +882,13 @@ defmodule Singularity.Workflow.Notifications do
               queue: queue_name,
               attempt: attempts + 1
             )
+
             # Exponential backoff with jitter
             base_delay = 100
-            exponential_delay = base_delay * :math.pow(2, attempts) |> round()
+            exponential_delay = (base_delay * :math.pow(2, attempts)) |> round()
             jitter = :rand.uniform(base_delay)
-            backoff_ms = min(exponential_delay + jitter, 10_000)  # Cap at 10 seconds
+            # Cap at 10 seconds
+            backoff_ms = min(exponential_delay + jitter, 10_000)
             Process.sleep(backoff_ms)
             do_send(queue_name, json_message, repo, attempts + 1)
 
@@ -867,11 +897,13 @@ defmodule Singularity.Workflow.Notifications do
               queue: queue_name,
               attempt: attempts + 1
             )
+
             # Exponential backoff with jitter for deadlocks
             base_delay = 50
-            exponential_delay = base_delay * :math.pow(2, attempts) |> round()
+            exponential_delay = (base_delay * :math.pow(2, attempts)) |> round()
             jitter = :rand.uniform(base_delay)
-            backoff_ms = min(exponential_delay + jitter, 5_000)  # Cap at 5 seconds
+            # Cap at 5 seconds
+            backoff_ms = min(exponential_delay + jitter, 5_000)
             Process.sleep(backoff_ms)
             do_send(queue_name, json_message, repo, attempts + 1)
 
@@ -880,6 +912,7 @@ defmodule Singularity.Workflow.Notifications do
               queue: queue_name,
               error: Exception.message(error)
             )
+
             {:error, {:unexpected_error, Exception.message(error)}}
         end
 
@@ -907,6 +940,7 @@ defmodule Singularity.Workflow.Notifications do
           reason: inspect(reason),
           attempt: attempts + 1
         )
+
         {:error, {:unexpected_exception, kind, reason}}
     end
   end
@@ -917,6 +951,7 @@ defmodule Singularity.Workflow.Notifications do
       queue: queue_name,
       max_attempts: 10
     )
+
     {:error, :max_retries_exceeded}
   end
 
@@ -961,6 +996,7 @@ defmodule Singularity.Workflow.Notifications do
                 queue: queue_name,
                 error: Exception.message(error)
               )
+
               {:error, {:connection_failure, Exception.message(error)}}
 
             _ ->
@@ -972,6 +1008,7 @@ defmodule Singularity.Workflow.Notifications do
             queue: queue_name,
             error: Exception.format(:error, error, __STACKTRACE__)
           )
+
           {:error, {:unexpected_error, Exception.message(error)}}
       catch
         kind, reason ->
@@ -980,6 +1017,7 @@ defmodule Singularity.Workflow.Notifications do
             kind: kind,
             reason: inspect(reason)
           )
+
           {:error, {:unexpected_exception, kind, reason}}
       end
     end
@@ -996,24 +1034,25 @@ defmodule Singularity.Workflow.Notifications do
       {:error, {:channel_too_long, channel}}
     else
       try do
-      case repo.query("SELECT pg_notify($1, $2)", [channel, message_id], timeout: 5_000) do
-        {:ok, _} ->
-          Logger.debug("NOTIFY triggered",
-            queue: queue_name,
-            channel: channel,
-            message_id: message_id
-          )
+        case repo.query("SELECT pg_notify($1, $2)", [channel, message_id], timeout: 5_000) do
+          {:ok, _} ->
+            Logger.debug("NOTIFY triggered",
+              queue: queue_name,
+              channel: channel,
+              message_id: message_id
+            )
 
-          :ok
+            :ok
 
-        {:error, reason} ->
-          Logger.error("NOTIFY trigger failed",
-            queue: queue_name,
-            channel: channel,
-            error: inspect(reason)
-          )
-          {:error, {:notify_failed, reason}}
-      end
+          {:error, reason} ->
+            Logger.error("NOTIFY trigger failed",
+              queue: queue_name,
+              channel: channel,
+              error: inspect(reason)
+            )
+
+            {:error, {:notify_failed, reason}}
+        end
       rescue
         error in [Postgrex.Error] ->
           case error do
@@ -1022,6 +1061,7 @@ defmodule Singularity.Workflow.Notifications do
                 queue: queue_name,
                 error: Exception.message(error)
               )
+
               {:error, {:connection_failure, Exception.message(error)}}
 
             _ ->
@@ -1029,23 +1069,26 @@ defmodule Singularity.Workflow.Notifications do
                 queue: queue_name,
                 error: Exception.message(error)
               )
+
               {:error, {:notify_error, Exception.message(error)}}
           end
 
-      error ->
-        Logger.error("Notifications: Unexpected error triggering NOTIFY",
-          queue: queue_name,
-          error: Exception.format(:error, error, __STACKTRACE__)
-        )
-        {:error, {:notify_error, Exception.message(error)}}
-    catch
-      kind, reason ->
-        Logger.error("Notifications: Unexpected exception triggering NOTIFY",
-          queue: queue_name,
-          kind: kind,
-          reason: inspect(reason)
-        )
-        {:error, {:notify_exception, kind, reason}}
+        error ->
+          Logger.error("Notifications: Unexpected error triggering NOTIFY",
+            queue: queue_name,
+            error: Exception.format(:error, error, __STACKTRACE__)
+          )
+
+          {:error, {:notify_error, Exception.message(error)}}
+      catch
+        kind, reason ->
+          Logger.error("Notifications: Unexpected exception triggering NOTIFY",
+            queue: queue_name,
+            kind: kind,
+            reason: inspect(reason)
+          )
+
+          {:error, {:notify_exception, kind, reason}}
       end
     end
   end
@@ -1085,14 +1128,16 @@ defmodule Singularity.Workflow.Notifications do
   end
 
   @dialyzer {:nowarn_function, wait_for_reply: 4}
-  @spec wait_for_reply(String.t(), module(), integer(), integer()) :: {:ok, map()} | {:error, term()}
+  @spec wait_for_reply(String.t(), module(), integer(), integer()) ::
+          {:ok, map()} | {:error, term()}
   defp wait_for_reply(queue, repo, timeout_ms, poll_interval) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
     do_wait_for_reply(queue, repo, deadline, poll_interval)
   end
 
   @dialyzer {:nowarn_function, do_wait_for_reply: 4}
-  @spec do_wait_for_reply(String.t(), module(), integer(), integer()) :: {:ok, map()} | {:error, term()}
+  @spec do_wait_for_reply(String.t(), module(), integer(), integer()) ::
+          {:ok, map()} | {:error, term()}
   defp do_wait_for_reply(queue, repo, deadline, poll_interval) do
     case pop_reply_message(queue, repo) do
       {:ok, nil} ->

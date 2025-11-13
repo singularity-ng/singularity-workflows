@@ -210,7 +210,10 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
   defp valid_batch_size?(_), do: false
 
   @spec valid_poll_interval?(integer()) :: boolean()
-  defp valid_poll_interval?(poll_interval_ms) when poll_interval_ms >= 10 and poll_interval_ms <= 10_000, do: true
+  defp valid_poll_interval?(poll_interval_ms)
+       when poll_interval_ms >= 10 and poll_interval_ms <= 10_000,
+       do: true
+
   defp valid_poll_interval?(_), do: false
 
   @spec log_and_return_invalid_batch_size(Ecto.UUID.t(), integer()) :: {:error, tuple()}
@@ -220,6 +223,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       batch_size: batch_size,
       valid_range: "1-100"
     )
+
     {:error, {:invalid_batch_size, batch_size}}
   end
 
@@ -230,6 +234,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       poll_interval_ms: poll_interval_ms,
       valid_range: "10-10000ms"
     )
+
     {:error, {:invalid_poll_interval, poll_interval_ms}}
   end
 
@@ -294,7 +299,8 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
   """
   @spec execute_run(Ecto.UUID.t(), WorkflowDefinition.t(), module(), keyword()) ::
           {:ok, map()} | {:ok, :in_progress} | {:error, term()}
-  def execute_run(run_id, definition, repo, opts \\ []) when is_binary(run_id) or is_struct(run_id, Ecto.UUID) do
+  def execute_run(run_id, definition, repo, opts \\ [])
+      when is_binary(run_id) or is_struct(run_id, Ecto.UUID) do
     timeout = Keyword.get(opts, :timeout, :infinity)
     # :infinity default (matches Singularity.Workflow - runs until workflow completes)
     poll_interval_ms = Keyword.get(opts, :poll_interval, 200)
@@ -370,6 +376,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
                   status: :ok
                 }
               )
+
               ok_result
 
             {:error, _reason} = error_result ->
@@ -383,6 +390,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
                   error: elem(error_result, 1)
                 }
               )
+
               error_result
           end
         rescue
@@ -441,7 +449,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
   @spec backoff_for_deadlock_retry() :: :ok
   defp backoff_for_deadlock_retry do
     base_delay_ms = 50
-    exponential_delay = base_delay_ms * :math.pow(2, 0) |> round()
+    exponential_delay = (base_delay_ms * :math.pow(2, 0)) |> round()
     jitter = :rand.uniform(base_delay_ms)
     backoff_ms = min(exponential_delay + jitter, 1_000)
     Process.sleep(backoff_ms)
@@ -460,7 +468,8 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
     end
   end
 
-  @spec mark_failed_if_exists(nil | Singularity.Workflow.WorkflowRun.t(), module(), String.t()) :: :ok | :error
+  @spec mark_failed_if_exists(nil | Singularity.Workflow.WorkflowRun.t(), module(), String.t()) ::
+          :ok | :error
   defp mark_failed_if_exists(nil, _repo, _error_message), do: :ok
 
   defp mark_failed_if_exists(run, repo, error_message) do
@@ -517,60 +526,60 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
 
       true ->
         case poll_and_execute_batch(
-             workflow_slug,
-             definition,
-             repo,
-             worker_id,
-             batch_size,
-             max_poll_seconds,
-             poll_interval_ms,
-             task_timeout_ms
-           ) do
-        {:ok, :tasks_executed, count} ->
-          # Tasks completed, poll for next batch immediately
-          Logger.debug("Executed batch of tasks",
-            run_id: run_id,
-            task_count: count
-          )
+               workflow_slug,
+               definition,
+               repo,
+               worker_id,
+               batch_size,
+               max_poll_seconds,
+               poll_interval_ms,
+               task_timeout_ms
+             ) do
+          {:ok, :tasks_executed, count} ->
+            # Tasks completed, poll for next batch immediately
+            Logger.debug("Executed batch of tasks",
+              run_id: run_id,
+              task_count: count
+            )
 
-          # Reset error counter on success
-          updated_config = %{config | consecutive_errors: 0}
-          execute_loop(run_id, workflow_slug, definition, repo, updated_config)
-
-        {:ok, :no_messages} ->
-          # No messages available, check run status
-          case check_run_status(run_id, repo) do
-            {:ok, output} when is_map(output) ->
-              # Run completed successfully
-              {:ok, output}
-
-            {:error, _} = error ->
-              error
-
-            {:ok, :in_progress} ->
-              # Run still in progress, continue polling
-              execute_loop(run_id, workflow_slug, definition, repo, config)
-          end
-
-        {:error, reason} ->
-          Logger.error("Task execution failed",
-            run_id: run_id,
-            reason: inspect(reason),
-            consecutive_errors: config.consecutive_errors + 1
-          )
-
-          # Increment error counter
-          updated_config = %{config | consecutive_errors: config.consecutive_errors + 1}
-
-          if should_retry_after_error?(updated_config, config) do
-            backoff_duration = calculate_exponential_backoff(updated_config.consecutive_errors)
-            log_backoff_decision(run_id, updated_config.consecutive_errors, backoff_duration)
-            Process.sleep(backoff_duration)
+            # Reset error counter on success
+            updated_config = %{config | consecutive_errors: 0}
             execute_loop(run_id, workflow_slug, definition, repo, updated_config)
-          else
-            {:error, reason}
-          end
-      end
+
+          {:ok, :no_messages} ->
+            # No messages available, check run status
+            case check_run_status(run_id, repo) do
+              {:ok, output} when is_map(output) ->
+                # Run completed successfully
+                {:ok, output}
+
+              {:error, _} = error ->
+                error
+
+              {:ok, :in_progress} ->
+                # Run still in progress, continue polling
+                execute_loop(run_id, workflow_slug, definition, repo, config)
+            end
+
+          {:error, reason} ->
+            Logger.error("Task execution failed",
+              run_id: run_id,
+              reason: inspect(reason),
+              consecutive_errors: config.consecutive_errors + 1
+            )
+
+            # Increment error counter
+            updated_config = %{config | consecutive_errors: config.consecutive_errors + 1}
+
+            if should_retry_after_error?(updated_config, config) do
+              backoff_duration = calculate_exponential_backoff(updated_config.consecutive_errors)
+              log_backoff_decision(run_id, updated_config.consecutive_errors, backoff_duration)
+              Process.sleep(backoff_duration)
+              execute_loop(run_id, workflow_slug, definition, repo, updated_config)
+            else
+              {:error, reason}
+            end
+        end
     end
   end
 
@@ -597,7 +606,14 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
        ) do
     poll_timeout_ms = (max_poll_seconds + @poll_timeout_grace_seconds) * 1000
 
-    case poll_messages(workflow_slug, batch_size, max_poll_seconds, poll_interval_ms, poll_timeout_ms, repo) do
+    case poll_messages(
+           workflow_slug,
+           batch_size,
+           max_poll_seconds,
+           poll_interval_ms,
+           poll_timeout_ms,
+           repo
+         ) do
       {:ok, []} ->
         {:ok, :no_messages}
 
@@ -631,13 +647,21 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           workflow_slug: workflow_slug,
           reason: inspect(reason)
         )
+
         error
     end
   end
 
   @spec poll_messages(String.t(), integer(), integer(), integer(), integer(), module()) ::
           {:ok, list(integer())} | {:error, term()}
-  defp poll_messages(workflow_slug, batch_size, max_poll_seconds, poll_interval_ms, poll_timeout_ms, repo) do
+  defp poll_messages(
+         workflow_slug,
+         batch_size,
+         max_poll_seconds,
+         poll_interval_ms,
+         poll_timeout_ms,
+         repo
+       ) do
     try do
       case repo.query(
              """
@@ -658,10 +682,12 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
 
         {:ok, %{rows: message_rows}} ->
           msg_ids = Enum.map(message_rows, fn [msg_id | _rest] -> msg_id end)
+
           Logger.debug("Polled messages from queue",
             workflow_slug: workflow_slug,
             msg_count: length(msg_ids)
           )
+
           {:ok, msg_ids}
 
         error ->
@@ -676,6 +702,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           workflow_slug: workflow_slug,
           error: Exception.format(:error, error, __STACKTRACE__)
         )
+
         {:error, {:poll_error, Exception.message(error)}}
     catch
       kind, reason ->
@@ -684,23 +711,32 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           kind: kind,
           reason: inspect(reason)
         )
+
         {:error, {:poll_exception, kind, reason}}
     end
   end
 
   @spec handle_poll_postgrex_error(Postgrex.Error.t(), String.t()) :: {:error, term()}
-  defp handle_poll_postgrex_error(%Postgrex.Error{postgres: %{code: :connection_failure}} = e, workflow_slug) do
+  defp handle_poll_postgrex_error(
+         %Postgrex.Error{postgres: %{code: :connection_failure}} = e,
+         workflow_slug
+       ) do
     Logger.error("TaskExecutor: Database connection failure during poll",
       workflow_slug: workflow_slug,
       error: Exception.message(e)
     )
+
     {:error, {:connection_failure, Exception.message(e)}}
   end
 
-  defp handle_poll_postgrex_error(%Postgrex.Error{postgres: %{code: :deadlock_detected}}, workflow_slug) do
+  defp handle_poll_postgrex_error(
+         %Postgrex.Error{postgres: %{code: :deadlock_detected}},
+         workflow_slug
+       ) do
     Logger.warning("TaskExecutor: Deadlock detected during poll, retrying",
       workflow_slug: workflow_slug
     )
+
     backoff_for_deadlock_retry()
     {:error, {:deadlock_detected, :retry_needed}}
   end
@@ -710,6 +746,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       workflow_slug: workflow_slug,
       error: Exception.message(e)
     )
+
     {:error, {:poll_error, Exception.message(e)}}
   end
 
@@ -791,6 +828,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           workflow_slug: workflow_slug,
           error: Exception.format(:error, error, __STACKTRACE__)
         )
+
         {:error, {:claim_error, Exception.message(error)}}
     catch
       kind, reason ->
@@ -799,6 +837,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           kind: kind,
           reason: inspect(reason)
         )
+
         {:error, {:claim_exception, kind, reason}}
     end
   end
@@ -816,6 +855,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       worker_id: worker_id,
       msg_count: length(msg_ids)
     )
+
     backoff_for_deadlock_retry()
     {:error, {:deadlock_detected, :retry_needed}}
   end
@@ -830,6 +870,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       workflow_slug: workflow_slug,
       error: Exception.message(e)
     )
+
     {:error, {:connection_failure, Exception.message(e)}}
   end
 
@@ -843,6 +884,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       workflow_slug: workflow_slug,
       worker_id: worker_id
     )
+
     {:ok, %{columns: [], rows: []}}
   end
 
@@ -851,6 +893,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
       workflow_slug: workflow_slug,
       error: Exception.message(e)
     )
+
     {:error, {:claim_error, Exception.message(e)}}
   end
 
@@ -877,7 +920,9 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
     Logger.debug("TaskExecutor: Retrying poll after deadlock",
       workflow_slug: workflow_slug
     )
+
     backoff_for_deadlock_retry()
+
     poll_and_execute_batch(
       workflow_slug,
       definition,
@@ -981,7 +1026,16 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
     step_fn = WorkflowDefinition.get_step_function(definition, step_slug_atom)
 
     step_fn
-    |> execute_task_if_found(definition, step_slug_atom, step_slug, run_id, task_index, input, task_timeout_ms, repo)
+    |> execute_task_if_found(
+      definition,
+      step_slug_atom,
+      step_slug,
+      run_id,
+      task_index,
+      input,
+      task_timeout_ms,
+      repo
+    )
   end
 
   # Complete task successfully (using Singularity.Workflow complete_task function)
@@ -1012,7 +1066,9 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
                 step_slug: step_slug,
                 task_index: task_index
               )
+
               backoff_for_deadlock_retry()
+
               repo.query(
                 "SELECT complete_task($1::uuid, $2::text, $3::integer, $4::jsonb)",
                 [run_id, step_slug, task_index, output],
@@ -1025,6 +1081,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
                 step_slug: step_slug,
                 error: Exception.message(e)
               )
+
               {:error, {:completion_error, Exception.message(e)}}
           end
 
@@ -1034,6 +1091,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
             step_slug: step_slug,
             error: Exception.format(:error, error, __STACKTRACE__)
           )
+
           {:error, {:completion_error, Exception.message(error)}}
       catch
         kind, reason ->
@@ -1043,6 +1101,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
             kind: kind,
             reason: inspect(reason)
           )
+
           {:error, {:completion_exception, kind, reason}}
       end
 
@@ -1135,11 +1194,22 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           integer(),
           module()
         ) :: {:error, tuple()}
-  defp execute_task_if_found(nil, _definition, _step_slug_atom, step_slug, run_id, _task_index, _input, _task_timeout_ms, _repo) do
+  defp execute_task_if_found(
+         nil,
+         _definition,
+         _step_slug_atom,
+         step_slug,
+         run_id,
+         _task_index,
+         _input,
+         _task_timeout_ms,
+         _repo
+       ) do
     Logger.error("TaskExecutor: Step function not found",
       step_slug: step_slug,
       run_id: run_id
     )
+
     {:error, {:step_not_found, step_slug}}
   end
 
@@ -1154,7 +1224,17 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           integer(),
           module()
         ) :: {:ok, :task_executed} | {:error, term()}
-  defp execute_task_if_found(step_fn, definition, step_slug_atom, step_slug, run_id, task_index, input, task_timeout_ms, repo) do
+  defp execute_task_if_found(
+         step_fn,
+         definition,
+         step_slug_atom,
+         step_slug,
+         run_id,
+         task_index,
+         input,
+         task_timeout_ms,
+         repo
+       ) do
     execution_config = WorkflowDefinition.get_step_execution_config(definition, step_slug_atom)
 
     Logger.debug("TaskExecutor: Executing task",
@@ -1198,6 +1278,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
             status: :ok
           }
         )
+
         handle_task_result(ok_result, run_id, step_slug, task_index, repo)
 
       {:error, _reason} = error_result ->
@@ -1212,6 +1293,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
             error: elem(error_result, 1)
           }
         )
+
         handle_task_result(error_result, run_id, step_slug, task_index, repo)
     end
   end
@@ -1227,8 +1309,18 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           integer(),
           integer()
         ) :: {:ok, :tasks_executed, integer()} | {:error, term()}
-  defp handle_task_claim_result({:ok, %{columns: columns, rows: task_rows}}, workflow_slug, definition, repo, _worker_id, batch_size, _max_poll_seconds, _poll_interval_ms, task_timeout_ms) do
-    tasks = Enum.map(task_rows, &Enum.zip(columns, &1) |> Map.new())
+  defp handle_task_claim_result(
+         {:ok, %{columns: columns, rows: task_rows}},
+         workflow_slug,
+         definition,
+         repo,
+         _worker_id,
+         batch_size,
+         _max_poll_seconds,
+         _poll_interval_ms,
+         task_timeout_ms
+       ) do
+    tasks = Enum.map(task_rows, &(Enum.zip(columns, &1) |> Map.new()))
 
     Logger.debug("Claimed tasks for execution",
       workflow_slug: workflow_slug,
@@ -1249,11 +1341,23 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           integer(),
           integer()
         ) :: {:ok, :no_messages} | {:ok, :tasks_executed, integer()} | {:error, term()}
-  defp handle_task_claim_result({:error, {:deadlock_detected, :retry_needed}}, workflow_slug, definition, repo, worker_id, batch_size, max_poll_seconds, poll_interval_ms, task_timeout_ms) do
+  defp handle_task_claim_result(
+         {:error, {:deadlock_detected, :retry_needed}},
+         workflow_slug,
+         definition,
+         repo,
+         worker_id,
+         batch_size,
+         max_poll_seconds,
+         poll_interval_ms,
+         task_timeout_ms
+       ) do
     Logger.debug("TaskExecutor: Retrying batch after deadlock",
       workflow_slug: workflow_slug
     )
+
     backoff_for_deadlock_retry()
+
     poll_and_execute_batch(
       workflow_slug,
       definition,
@@ -1277,11 +1381,22 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
           integer(),
           integer()
         ) :: {:error, term()}
-  defp handle_task_claim_result({:error, reason}, workflow_slug, _definition, _repo, _worker_id, _batch_size, _max_poll_seconds, _poll_interval_ms, _task_timeout_ms) do
+  defp handle_task_claim_result(
+         {:error, reason},
+         workflow_slug,
+         _definition,
+         _repo,
+         _worker_id,
+         _batch_size,
+         _max_poll_seconds,
+         _poll_interval_ms,
+         _task_timeout_ms
+       ) do
     Logger.error("TaskExecutor: Failed to start tasks",
       workflow_slug: workflow_slug,
       reason: inspect(reason)
     )
+
     {:error, reason}
   end
 
@@ -1315,7 +1430,9 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
                 step_slug: step_slug,
                 task_index: task_index
               )
+
               backoff_for_deadlock_retry()
+
               repo.query(
                 "SELECT singularity_workflow.fail_task($1::uuid, $2::text, $3::integer, $4::text)",
                 [run_id, step_slug, task_index, error_message],
@@ -1328,6 +1445,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
                 step_slug: step_slug,
                 error: Exception.message(e)
               )
+
               {:error, {:failure_error, Exception.message(e)}}
           end
 
@@ -1337,6 +1455,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
             step_slug: step_slug,
             error: Exception.format(:error, error, __STACKTRACE__)
           )
+
           {:error, {:failure_error, Exception.message(error)}}
       catch
         kind, reason ->
@@ -1346,6 +1465,7 @@ defmodule Singularity.Workflow.DAG.TaskExecutor do
             kind: kind,
             reason: inspect(reason)
           )
+
           {:error, {:failure_exception, kind, reason}}
       end
 

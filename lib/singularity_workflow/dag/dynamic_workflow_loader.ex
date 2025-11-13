@@ -137,7 +137,8 @@ defmodule Singularity.Workflow.DAG.DynamicWorkflowLoader do
   end
 
   # Build WorkflowDefinition struct from DB data
-  @spec build_definition(String.t(), map(), list(), list(), map()) :: {:ok, WorkflowDefinition.t()} | {:error, term()}
+  @spec build_definition(String.t(), map(), list(), list(), map()) ::
+          {:ok, WorkflowDefinition.t()} | {:error, term()}
   defp build_definition(workflow_slug, _workflow_data, steps_data, deps_data, step_functions) do
     # Convert steps to WorkflowDefinition format
     steps_list =

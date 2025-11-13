@@ -54,7 +54,7 @@ defmodule Singularity.Workflow.MixProject do
       dep(:credo, "~> 1.7", only: [:dev, :test], runtime: false),
       dep(:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false),
       dep(:sobelow, "~> 0.13", only: [:dev, :test], runtime: false),
-      dep(:excoveralls, "~> 0.18", only: :test),
+      dep(:excoveralls, "~> 0.18", only: :test)
 
       # Documentation
       # Disabled in CI due to proxy TLS issues fetching Hex packages

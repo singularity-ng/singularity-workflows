@@ -63,7 +63,8 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
   end
 
   # Step 1: Create workflow_runs record
-  @spec create_run(WorkflowDefinition.t(), map(), module()) :: {:ok, WorkflowRun.t()} | {:error, term()}
+  @spec create_run(WorkflowDefinition.t(), map(), module()) ::
+          {:ok, WorkflowRun.t()} | {:error, term()}
   defp create_run(definition, input, repo) do
     run_id = Ecto.UUID.generate()
     step_count = map_size(definition.steps)
@@ -116,7 +117,8 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
     end
   end
 
-  @spec create_workflow_record_if_needed(WorkflowDefinition.t(), module(), integer()) :: :ok | {:error, term()}
+  @spec create_workflow_record_if_needed(WorkflowDefinition.t(), module(), integer()) ::
+          :ok | {:error, term()}
   defp create_workflow_record_if_needed(definition, repo, 0) do
     # Create workflow record for code-based workflow
     clock = Application.get_env(:singularity_workflow, :clock, Singularity.Workflow.Clock)
@@ -164,7 +166,8 @@ defmodule Singularity.Workflow.DAG.RunInitializer do
   end
 
   # Step 2: Create workflow_step_states records
-  @spec create_step_states(WorkflowDefinition.t(), Ecto.UUID.t(), module()) :: :ok | {:error, term()}
+  @spec create_step_states(WorkflowDefinition.t(), Ecto.UUID.t(), module()) ::
+          :ok | {:error, term()}
   defp create_step_states(definition, run_id, repo) do
     clock = Application.get_env(:singularity_workflow, :clock, Singularity.Workflow.Clock)
 

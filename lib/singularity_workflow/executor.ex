@@ -246,6 +246,7 @@ defmodule Singularity.Workflow.Executor do
           workflow: inspect(workflow_module),
           expected: "atom (module)"
         )
+
         {:error, {:invalid_workflow_module, workflow_module}}
 
       not is_map(input) ->
@@ -253,6 +254,7 @@ defmodule Singularity.Workflow.Executor do
           input: inspect(input),
           expected: "map"
         )
+
         {:error, {:invalid_input, input}}
 
       true ->
@@ -307,7 +309,9 @@ defmodule Singularity.Workflow.Executor do
                 {:ok, output} when is_map(output) ->
                   # Validate output size
                   output_size = :erlang.term_to_binary(output) |> byte_size()
-                  max_output_size = Keyword.get(opts, :max_output_size_bytes, @max_output_size_bytes)
+
+                  max_output_size =
+                    Keyword.get(opts, :max_output_size_bytes, @max_output_size_bytes)
 
                   if output_size > max_output_size do
                     Logger.warning("Singularity.Workflow.Executor: Output size exceeds limit",
@@ -624,91 +628,96 @@ defmodule Singularity.Workflow.Executor do
       import Ecto.Query
 
       try do
-        _result = repo.transaction(fn ->
-          case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
-            nil ->
-              repo.rollback({:error, :not_found})
+        _result =
+          repo.transaction(fn ->
+            case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
+              nil ->
+                repo.rollback({:error, :not_found})
 
-            run ->
-              unless force do
-                if run.status in ["completed", "failed"] do
-                  repo.rollback({:error, {:already_finished, run.status}})
+              run ->
+                unless force do
+                  if run.status in ["completed", "failed"] do
+                    repo.rollback({:error, {:already_finished, run.status}})
+                  end
                 end
-              end
 
-              # Mark workflow as failed
-              run
-              |> Singularity.Workflow.WorkflowRun.mark_failed(reason)
-              |> repo.update!()
+                # Mark workflow as failed
+                run
+                |> Singularity.Workflow.WorkflowRun.mark_failed(reason)
+                |> repo.update!()
 
-              # Cancel pending tasks
-              from(t in Singularity.Workflow.StepTask,
-                where: t.run_id == ^run_id,
-                where: t.status in ["queued", "started"]
+                # Cancel pending tasks
+                from(t in Singularity.Workflow.StepTask,
+                  where: t.run_id == ^run_id,
+                  where: t.status in ["queued", "started"]
+                )
+                |> repo.update_all(set: [status: "cancelled", updated_at: DateTime.utc_now()])
+
+                # Cancel Oban jobs if using distributed execution (internal detail)
+                if Code.ensure_loaded?(Oban) do
+                  cancel_oban_jobs_for_run(run_id, repo)
+                end
+
+                Logger.info("Workflow cancelled",
+                  run_id: run_id,
+                  reason: reason
+                )
+
+                :ok
+            end
+          end)
+          |> case do
+            {:ok, :ok} = ok_result ->
+              :telemetry.execute(
+                [:singularity_workflow, :executor, :cancel, :stop],
+                %{},
+                %{
+                  run_id: run_id,
+                  reason: reason,
+                  force: force,
+                  status: :ok
+                }
               )
-              |> repo.update_all(set: [status: "cancelled", updated_at: DateTime.utc_now()])
 
-              # Cancel Oban jobs if using distributed execution (internal detail)
-              if Code.ensure_loaded?(Oban) do
-                cancel_oban_jobs_for_run(run_id, repo)
-              end
+              ok_result
 
-              Logger.info("Workflow cancelled",
-                run_id: run_id,
-                reason: reason
+            {:ok, {:error, reason} = error_result} ->
+              :telemetry.execute(
+                [:singularity_workflow, :executor, :cancel, :stop],
+                %{},
+                %{
+                  run_id: run_id,
+                  reason: reason,
+                  force: force,
+                  status: :error,
+                  error: reason
+                }
               )
 
-              :ok
+              error_result
+
+            {:error, reason} = error_result ->
+              :telemetry.execute(
+                [:singularity_workflow, :executor, :cancel, :stop],
+                %{},
+                %{
+                  run_id: run_id,
+                  reason: reason,
+                  force: force,
+                  status: :error,
+                  error: reason
+                }
+              )
+
+              error_result
           end
-        end)
-        |> case do
-          {:ok, :ok} = ok_result ->
-            :telemetry.execute(
-              [:singularity_workflow, :executor, :cancel, :stop],
-              %{},
-              %{
-                run_id: run_id,
-                reason: reason,
-                force: force,
-                status: :ok
-              }
-            )
-            ok_result
-
-          {:ok, {:error, reason} = error_result} ->
-            :telemetry.execute(
-              [:singularity_workflow, :executor, :cancel, :stop],
-              %{},
-              %{
-                run_id: run_id,
-                reason: reason,
-                force: force,
-                status: :error,
-                error: reason
-              }
-            )
-            error_result
-
-          {:error, reason} = error_result ->
-            :telemetry.execute(
-              [:singularity_workflow, :executor, :cancel, :stop],
-              %{},
-              %{
-                run_id: run_id,
-                reason: reason,
-                force: force,
-                status: :error,
-                error: reason
-              }
-            )
-            error_result
-        end
       rescue
         error ->
           Logger.error("Executor: Unexpected exception during cancellation",
             run_id: run_id,
             error: Exception.format(:error, error, __STACKTRACE__)
           )
+
           {:error, {:unexpected_error, Exception.message(error)}}
       catch
         kind, reason ->
@@ -717,12 +726,14 @@ defmodule Singularity.Workflow.Executor do
             kind: kind,
             reason: inspect(reason)
           )
+
           {:error, {:unexpected_exception, kind, reason}}
       end
     else
       Logger.error("Executor: Invalid run_id type for cancellation",
         run_id: inspect(run_id)
       )
+
       {:error, {:invalid_run_id, run_id}}
     end
   end
@@ -850,42 +861,43 @@ defmodule Singularity.Workflow.Executor do
       }
     )
 
-    result = case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
-      nil ->
-        {:error, :not_found}
+    result =
+      case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
+        nil ->
+          {:error, :not_found}
 
-      run ->
-        if run.status != "failed" and not reset_all do
-          {:error, {:not_failed, run.status}}
-        else
-          # Get workflow module
-          workflow_module =
-            try do
-              String.to_existing_atom("Elixir.#{run.workflow_slug}")
-            rescue
-              ArgumentError -> nil
-            end
-
-          if workflow_module && function_exported?(workflow_module, :__workflow_steps__, 0) do
-            Logger.info("Retrying workflow",
-              original_run_id: run_id,
-              workflow_slug: run.workflow_slug,
-              reset_all: reset_all
-            )
-
-            # Execute workflow again with same input
-            case execute(workflow_module, run.input, repo) do
-              {:ok, _result} ->
-                {:ok, run_id}
-
-              {:error, reason} ->
-                {:error, {:retry_failed, reason}}
-            end
+        run ->
+          if run.status != "failed" and not reset_all do
+            {:error, {:not_failed, run.status}}
           else
-            {:error, {:workflow_module_not_found, run.workflow_slug}}
+            # Get workflow module
+            workflow_module =
+              try do
+                String.to_existing_atom("Elixir.#{run.workflow_slug}")
+              rescue
+                ArgumentError -> nil
+              end
+
+            if workflow_module && function_exported?(workflow_module, :__workflow_steps__, 0) do
+              Logger.info("Retrying workflow",
+                original_run_id: run_id,
+                workflow_slug: run.workflow_slug,
+                reset_all: reset_all
+              )
+
+              # Execute workflow again with same input
+              case execute(workflow_module, run.input, repo) do
+                {:ok, _result} ->
+                  {:ok, run_id}
+
+                {:error, reason} ->
+                  {:error, {:retry_failed, reason}}
+              end
+            else
+              {:error, {:workflow_module_not_found, run.workflow_slug}}
+            end
           end
-        end
-    end
+      end
 
     :telemetry.execute(
       [:singularity_workflow, :executor, :retry, :stop],
@@ -930,72 +942,76 @@ defmodule Singularity.Workflow.Executor do
   def pause_workflow_run(run_id, repo) do
     import Ecto.Query
 
-    _result = repo.transaction(fn ->
-      case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
-        nil ->
-          repo.rollback({:error, :not_found})
+    _result =
+      repo.transaction(fn ->
+        case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
+          nil ->
+            repo.rollback({:error, :not_found})
 
-        run ->
-          if run.status != "started" do
-            repo.rollback({:error, {:not_running, run.status}})
-          end
+          run ->
+            if run.status != "started" do
+              repo.rollback({:error, {:not_running, run.status}})
+            end
 
-          # Update workflow status to paused (custom status)
-          # Note: Schema only has started/completed/failed, so we store in error_message
-          run
-          |> Ecto.Changeset.change(%{
-            error_message: "PAUSED",
-            updated_at: DateTime.utc_now()
-          })
-          |> repo.update!()
+            # Update workflow status to paused (custom status)
+            # Note: Schema only has started/completed/failed, so we store in error_message
+            run
+            |> Ecto.Changeset.change(%{
+              error_message: "PAUSED",
+              updated_at: DateTime.utc_now()
+            })
+            |> repo.update!()
 
-          # Mark queued tasks as paused
-          from(t in Singularity.Workflow.StepTask,
-            where: t.run_id == ^run_id,
-            where: t.status == "queued"
+            # Mark queued tasks as paused
+            from(t in Singularity.Workflow.StepTask,
+              where: t.run_id == ^run_id,
+              where: t.status == "queued"
+            )
+            |> repo.update_all(set: [status: "paused", updated_at: DateTime.utc_now()])
+
+            Logger.info("Workflow paused", run_id: run_id)
+            :ok
+        end
+      end)
+      |> case do
+        {:ok, :ok} = ok_result ->
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :pause, :stop],
+            %{},
+            %{
+              run_id: run_id,
+              status: :ok
+            }
           )
-          |> repo.update_all(set: [status: "paused", updated_at: DateTime.utc_now()])
 
-          Logger.info("Workflow paused", run_id: run_id)
-          :ok
+          ok_result
+
+        {:ok, {:error, reason} = error_result} ->
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :pause, :stop],
+            %{},
+            %{
+              run_id: run_id,
+              status: :error,
+              error: reason
+            }
+          )
+
+          error_result
+
+        {:error, reason} = error_result ->
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :pause, :stop],
+            %{},
+            %{
+              run_id: run_id,
+              status: :error,
+              error: reason
+            }
+          )
+
+          error_result
       end
-    end)
-    |> case do
-      {:ok, :ok} = ok_result ->
-        :telemetry.execute(
-          [:singularity_workflow, :executor, :pause, :stop],
-          %{},
-          %{
-            run_id: run_id,
-            status: :ok
-          }
-        )
-        ok_result
-
-      {:ok, {:error, reason} = error_result} ->
-        :telemetry.execute(
-          [:singularity_workflow, :executor, :pause, :stop],
-          %{},
-          %{
-            run_id: run_id,
-            status: :error,
-            error: reason
-          }
-        )
-        error_result
-
-      {:error, reason} = error_result ->
-        :telemetry.execute(
-          [:singularity_workflow, :executor, :pause, :stop],
-          %{},
-          %{
-            run_id: run_id,
-            status: :error,
-            error: reason
-          }
-        )
-        error_result
-    end
   end
 
   @doc """
@@ -1025,71 +1041,75 @@ defmodule Singularity.Workflow.Executor do
   def resume_workflow_run(run_id, repo) do
     import Ecto.Query
 
-    _result = repo.transaction(fn ->
-      case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
-        nil ->
-          repo.rollback({:error, :not_found})
+    _result =
+      repo.transaction(fn ->
+        case repo.get(Singularity.Workflow.WorkflowRun, run_id) do
+          nil ->
+            repo.rollback({:error, :not_found})
 
-        run ->
-          if run.error_message != "PAUSED" do
-            repo.rollback({:error, :not_paused})
-          end
+          run ->
+            if run.error_message != "PAUSED" do
+              repo.rollback({:error, :not_paused})
+            end
 
-          # Clear pause marker
-          run
-          |> Ecto.Changeset.change(%{
-            error_message: nil,
-            updated_at: DateTime.utc_now()
-          })
-          |> repo.update!()
+            # Clear pause marker
+            run
+            |> Ecto.Changeset.change(%{
+              error_message: nil,
+              updated_at: DateTime.utc_now()
+            })
+            |> repo.update!()
 
-          # Resume paused tasks
-          from(t in Singularity.Workflow.StepTask,
-            where: t.run_id == ^run_id,
-            where: t.status == "paused"
+            # Resume paused tasks
+            from(t in Singularity.Workflow.StepTask,
+              where: t.run_id == ^run_id,
+              where: t.status == "paused"
+            )
+            |> repo.update_all(set: [status: "queued", updated_at: DateTime.utc_now()])
+
+            Logger.info("Workflow resumed", run_id: run_id)
+            :ok
+        end
+      end)
+      |> case do
+        {:ok, :ok} = ok_result ->
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :resume, :stop],
+            %{},
+            %{
+              run_id: run_id,
+              status: :ok
+            }
           )
-          |> repo.update_all(set: [status: "queued", updated_at: DateTime.utc_now()])
 
-          Logger.info("Workflow resumed", run_id: run_id)
-          :ok
+          ok_result
+
+        {:ok, {:error, reason} = error_result} ->
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :resume, :stop],
+            %{},
+            %{
+              run_id: run_id,
+              status: :error,
+              error: reason
+            }
+          )
+
+          error_result
+
+        {:error, reason} = error_result ->
+          :telemetry.execute(
+            [:singularity_workflow, :executor, :resume, :stop],
+            %{},
+            %{
+              run_id: run_id,
+              status: :error,
+              error: reason
+            }
+          )
+
+          error_result
       end
-    end)
-    |> case do
-      {:ok, :ok} = ok_result ->
-        :telemetry.execute(
-          [:singularity_workflow, :executor, :resume, :stop],
-          %{},
-          %{
-            run_id: run_id,
-            status: :ok
-          }
-        )
-        ok_result
-
-      {:ok, {:error, reason} = error_result} ->
-        :telemetry.execute(
-          [:singularity_workflow, :executor, :resume, :stop],
-          %{},
-          %{
-            run_id: run_id,
-            status: :error,
-            error: reason
-          }
-        )
-        error_result
-
-      {:error, reason} = error_result ->
-        :telemetry.execute(
-          [:singularity_workflow, :executor, :resume, :stop],
-          %{},
-          %{
-            run_id: run_id,
-            status: :error,
-            error: reason
-          }
-        )
-        error_result
-    end
   end
 
   # Calculate workflow progress

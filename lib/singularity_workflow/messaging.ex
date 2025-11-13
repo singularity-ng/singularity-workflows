@@ -19,7 +19,8 @@ defmodule Singularity.Workflow.Messaging do
   `:ecto_repos`) or an Ecto repo module. Additional options are forwarded to
   `Singularity.Workflow.Notifications.send_with_notify/4`.
   """
-  @spec publish(module() | atom(), String.t(), map(), keyword()) :: {:ok, integer()} | {:error, term()}
+  @spec publish(module() | atom(), String.t(), map(), keyword()) ::
+          {:ok, integer()} | {:error, term()}
   def publish(app_or_repo, queue_name, payload, opts \\ []) do
     {repo, notify_opts} = extract_repo(app_or_repo, opts)
     do_publish(repo, queue_name, payload, notify_opts)
